@@ -54,15 +54,40 @@ dialog .row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wr
 #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
 #toast.show{opacity:1}
 .empty{color:var(--mute);text-align:center;padding:60px 0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:var(--panel)}
+.seg button.on{background:var(--acc);color:#071223;font-weight:600}
+.tree .group{padding:6px 10px 8px}
+.tree .ghead{margin-bottom:4px}
+.twisty{background:none;border:0;padding:0 4px;color:var(--mute);font-size:12px;width:20px}
+.twisty:hover{color:var(--fg)}
+.trows{display:flex;flex-direction:column;min-height:28px}
+.trows:empty::after{content:"Drop pages here";color:var(--mute);font-size:12px;border:1px dashed var(--line);border-radius:8px;padding:6px 10px}
+.site{display:flex;align-items:center;gap:6px;padding:3px 4px;color:var(--mute);font-size:12px;cursor:pointer;border-radius:6px}
+.site:hover{background:var(--panel2)}
+.site img{width:14px;height:14px}
+.site b{color:var(--fg);font-weight:600}
+.trow{position:relative;display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;user-select:none;border:1px solid transparent}
+.trow.nested{margin-left:26px}
+.trow:hover{background:var(--panel2);border-color:var(--line)}
+.trow.dragging{opacity:.35}
+.trow.insert{box-shadow:0 -2px 0 0 var(--acc)}
+.trow img{width:16px;height:16px;flex:none}
+.trow .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+.trow .d{flex:1;min-width:0;color:var(--mute);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow .acts{position:static;opacity:0}
+.trow:hover .acts{opacity:1}
 </style>
 </head>
 <body>
 <header>
   <h1>Mosaic <span>Peek</span></h1>
   <button class="primary" id="btnImport">+ Import URLs</button>
+  <span class="seg" id="viewSeg"><button data-view="mosaic" title="Mosaic view">▦ Mosaic</button><button data-view="tree" title="Tree view">☰ Tree</button></span>
   <button id="btnNewGroup">+ Group</button>
   <input type="search" id="search" placeholder="Filter tiles…">
-  <label class="hint">Size <input type="range" id="size" min="160" max="360" value="220"></label>
+  <label class="hint" id="sizeLbl">Size <input type="range" id="size" min="160" max="360" value="220"></label>
+  <span id="treeActs" hidden><button id="btnExpand">Expand all</button> <button id="btnCollapse">Collapse all</button></span>
   <span class="spacer"></span>
   <span id="stats"></span>
   <button id="btnPeeks" title="Retry failed / fetch missing screenshots">↻ Peeks</button>
@@ -116,7 +141,9 @@ function sanitize(s){
   for (const t of Object.values(s.tiles)) if (t.peek === 'pending') t.peek = 'none';
   return s;
 }
-let saveT; function save(){ clearTimeout(saveT); saveT = setTimeout(()=>{ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){ toast('Save failed: '+e.message); } }, 80); }
+let saveT; function save(){ clearTimeout(saveT); saveT = setTimeout(flush, 80); }
+function flush(){ clearTimeout(saveT); saveT = null; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){ toast('Save failed: '+e.message); } }
+addEventListener('pagehide', () => { if (saveT) flush(); });
 const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
 
 // ---------- url helpers ----------
@@ -212,8 +239,14 @@ async function fetchPeek(t){
 // ---------- render ----------
 const board = document.getElementById('board');
 let filter = '';
+let view = localStorage.getItem(KEY+'.view') === 'tree' ? 'tree' : 'mosaic';
+const openSites = new Set(); // "gid|host" keys expanded in tree view (sites with 2+ pages start collapsed)
 function render(){
   board.innerHTML = '';
+  board.classList.toggle('tree', view==='tree');
+  document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('on', b.dataset.view===view));
+  document.getElementById('sizeLbl').hidden = view==='tree';
+  document.getElementById('treeActs').hidden = view!=='tree';
   const total = Object.keys(state.tiles).length;
   if (!total && state.groups.length === 1){
     board.innerHTML = '<div class="empty"><p style="font-size:18px">Your wall is empty.</p><p>Click <b>+ Import URLs</b> to paste a list or load a CSV.</p></div>';
@@ -229,6 +262,8 @@ function groupEl(g){
   const head = document.createElement('div'); head.className='ghead';
   const name = document.createElement('div'); name.className='name'; name.textContent=g.name;
   const count = document.createElement('span'); count.className='count'; count.textContent = `${g.tileIds.length}`;
+  const tree = view==='tree', collapsed = tree && g.collapsed && !filter;
+  if (tree){ const tw = btn(collapsed?'▸':'▾', () => { g.collapsed = !g.collapsed; save(); render(); }); tw.className='twisty'; tw.title = collapsed?'Expand':'Collapse'; head.append(tw); }
   head.append(name, count);
   if (g.id !== UNGROUPED){
     name.title='Double-click to rename';
@@ -240,17 +275,21 @@ function groupEl(g){
     const del = btn('Delete', () => { if (!confirm(`Delete group "${g.name}"? Its tiles move to Ungrouped.`)) return;
       state.groups.find(x=>x.id===UNGROUPED).tileIds.push(...g.tileIds); state.groups = state.groups.filter(x=>x!==g); save(); render(); });
     del.className='danger';
-    head.append(document.createElement('span'), up, dn, ren, openAll, del);
-    head.children[2].className='spacer';
+    const sp = document.createElement('span'); sp.className='spacer';
+    head.append(sp, up, dn, ren, openAll, del);
   }
-  const grid = document.createElement('div'); grid.className='grid';
-  for (const id of g.tileIds){ const t = state.tiles[id]; if (t && matches(t)) grid.appendChild(tileEl(t)); }
-  el.append(head, grid);
+  el.append(head);
+  if (tree){ if (!collapsed) el.append(treeBody(g)); }
+  else {
+    const grid = document.createElement('div'); grid.className='grid';
+    for (const id of g.tileIds){ const t = state.tiles[id]; if (t && matches(t)) grid.appendChild(tileEl(t)); }
+    el.append(grid);
+  }
   // drop zone
   el.addEventListener('dragover', e => { if (!dragId) return; e.preventDefault(); e.dataTransfer.dropEffect='move'; el.classList.add('over'); });
   el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('over'); });
   el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over'); if (!dragId) return;
-    const beforeTile = e.target.closest('.tile'); moveTile(dragId, g.id, beforeTile ? beforeTile.dataset.id : null); });
+    const beforeTile = e.target.closest('.tile,.trow'); moveTile(dragId, g.id, beforeTile ? beforeTile.dataset.id : null); });
   return el;
 }
 function matches(t){ if (!filter) return true; return (t.url+' '+(t.title||'')).toLowerCase().includes(filter); }
@@ -264,6 +303,46 @@ function moveGroup(id, dir){
   const i = state.groups.findIndex(g=>g.id===id), j = i+dir;
   if (j < 1 || j >= state.groups.length) return; // keep Ungrouped first
   [state.groups[i], state.groups[j]] = [state.groups[j], state.groups[i]]; save(); render();
+}
+// ---------- tree view ----------
+// Group → site → page. A site with one page shows as a plain row; 2+ pages fold under a site node.
+function treeBody(g){
+  const wrap = document.createElement('div'); wrap.className='trows';
+  const ids = g.tileIds.filter(id => state.tiles[id] && matches(state.tiles[id]));
+  const bySite = new Map();
+  for (const id of ids){ const h = host(state.tiles[id].url); if (!bySite.has(h)) bySite.set(h, []); bySite.get(h).push(id); }
+  const done = new Set();
+  for (const id of ids){
+    const h = host(state.tiles[id].url); if (done.has(h)) continue; done.add(h);
+    const pages = bySite.get(h);
+    if (pages.length === 1){ wrap.appendChild(treeRow(state.tiles[id], false)); continue; }
+    const key = g.id+'|'+h, open = openSites.has(key) || !!filter;
+    const site = document.createElement('div'); site.className='site';
+    site.innerHTML = `<span class="twisty">${open?'▾':'▸'}</span><img alt="" src="${FAVICON(h)}"><b>${esc(h)}</b> ${pages.length} pages`;
+    site.onclick = () => { openSites.has(key) ? openSites.delete(key) : openSites.add(key); render(); };
+    wrap.appendChild(site);
+    if (open) for (const pid of pages) wrap.appendChild(treeRow(state.tiles[pid], true));
+  }
+  return wrap;
+}
+function treeRow(t, nested){
+  const el = document.createElement('div'); el.className = 'trow' + (nested?' nested':''); el.draggable=true; el.dataset.id=t.id; el.title=t.url;
+  let path = ''; try { const u = new URL(t.url); path = (u.pathname + u.search).replace(/^\/$/,''); } catch(e){}
+  const label = t.title||defaultTitle(t.url), where = host(t.url)+path;
+  el.innerHTML = `<img alt="" src="${FAVICON(host(t.url))}"><span class="t">${esc(label)}</span><span class="d">${label===where?'':esc(where)}</span><span class="acts"></span>`;
+  el.querySelector('.acts').append(
+    btn('✎', () => { const v = prompt('Title', t.title||defaultTitle(t.url)); if (v!==null){ t.title=v.trim(); save(); render(); } }),
+    btn('✕', () => removeTile(t.id))
+  );
+  wireDrag(el, t);
+  return el;
+}
+function wireDrag(el, t){
+  el.addEventListener('click', e => { if (e.target.closest('.acts')) return; if (Date.now() - lastDragEnd < 300) return; openTile(t.id); });
+  el.addEventListener('dragstart', e => { dragId=t.id; el.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', t.url); });
+  el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragId=null; lastDragEnd=Date.now(); document.querySelectorAll('.over,.insert').forEach(x=>x.classList.remove('over','insert')); });
+  el.addEventListener('dragover', () => { if (dragId && dragId!==t.id){ document.querySelectorAll('.insert').forEach(x=>x.classList.remove('insert')); el.classList.add('insert'); } });
+  el.addEventListener('dragleave', () => el.classList.remove('insert'));
 }
 function peekInner(t){
   if (t.peek==='ok' && t.shot) return `<img class="shot" loading="lazy" alt="" src="${esc(t.shot)}" onerror="this.dataset.err=1;window.__mpShotErr&&window.__mpShotErr('${t.id}')">`;
@@ -283,11 +362,7 @@ function tileEl(t){
     btn('✕', () => { removeTile(t.id); })
   );
   acts.children[0].title='Open in new tab'; acts.children[1].title='Rename'; acts.children[2].title='Re-capture peek'; acts.children[3].title='Remove';
-  el.addEventListener('click', e => { if (e.target.closest('.acts')) return; if (Date.now() - lastDragEnd < 300) return; openTile(t.id); });
-  el.addEventListener('dragstart', e => { dragId=t.id; el.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', t.url); });
-  el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragId=null; lastDragEnd=Date.now(); document.querySelectorAll('.over,.insert').forEach(x=>x.classList.remove('over','insert')); });
-  el.addEventListener('dragover', () => { if (dragId && dragId!==t.id){ document.querySelectorAll('.insert').forEach(x=>x.classList.remove('insert')); el.classList.add('insert'); } });
-  el.addEventListener('dragleave', () => el.classList.remove('insert'));
+  wireDrag(el, t);
   return el;
 }
 window.__mpShotErr = id => { const t = state.tiles[id]; if (t){ t.peek='fail'; t.shot=''; save(); refreshTile(id); } };
@@ -334,6 +409,9 @@ const size = document.getElementById('size');
 size.oninput = () => { document.documentElement.style.setProperty('--tile', size.value+'px'); localStorage.setItem(KEY+'.size', size.value); };
 size.value = localStorage.getItem(KEY+'.size') || 220; size.oninput();
 document.getElementById('btnPeeks').onclick = () => queuePeeks(true);
+document.getElementById('viewSeg').onclick = e => { const v = e.target.dataset.view; if (!v || v===view) return; view = v; localStorage.setItem(KEY+'.view', v); render(); };
+document.getElementById('btnExpand').onclick = () => { state.groups.forEach(g=>g.collapsed=false); for (const t of Object.values(state.tiles)){ const g = state.groups.find(x=>x.tileIds.includes(t.id)); if (g) openSites.add(g.id+'|'+host(t.url)); } save(); render(); };
+document.getElementById('btnCollapse').onclick = () => { state.groups.forEach(g=>g.collapsed=true); openSites.clear(); save(); render(); };
 document.getElementById('btnExport').onclick = () => {
   const blob = new Blob([JSON.stringify({...state, exportedAt:new Date().toISOString()}, null, 2)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mosaic-peek-${new Date().toISOString().slice(0,10)}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);

@@ -13,5 +13,4 @@ Open `index.html` directly, or `python3 -m http.server 8080` from the repo root.
 
 ## Next
 - Check the Pages URL is still healthy.
-- v1.1: Tree view.
 - Later: Microlink API key tier, browser extension that reads open tabs, sync.
