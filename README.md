@@ -6,7 +6,24 @@ Turn a list of URLs into a visual wall of peek tiles, drag them into named group
 - Double-click `index.html` (works from `file://`), or
 - From the repo root: `python3 -m http.server 8080` then open http://localhost:8080
 
-No build step, no dependencies, no frameworks — one self-contained `index.html`.
+No build step, no dependencies, no frameworks. Plain HTML, CSS and JS.
+
+Project files (designs, notes, assets) live in Google Drive: [SFW / mosaic-windows](https://drive.google.com/drive/folders/1KQ_wT347uYBmPVQoKNQy5mJCcGmpI7Au).
+
+## Folder tree
+```
+mosaic-windows/
+├── index.html              # page markup (served at repo root, GitHub Pages-ready)
+├── assets/
+│   ├── css/styles.css      # all styles
+│   └── js/app.js           # all app logic (state, import, groups, drag/drop, peeks)
+├── samples/
+│   └── sample-urls.csv     # demo CSV for "Load CSV file…"
+├── docs/
+│   └── ROADMAP.md          # what's next
+├── .gitignore
+└── README.md
+```
 
 ## Use
 - **+ Import URLs** — paste one URL per line, or paste/load a CSV (column named `url`/`link`, else first column; optional `title`/`name` column). Bare domains get `https://`. Dedupes by normalized URL (ignores scheme, `www.`, trailing slash, `#hash`). "Sample URLs" fills 12 demo links.
@@ -25,5 +42,7 @@ No build step, no dependencies, no frameworks — one self-contained `index.html
 - Caveats: Microlink's free, keyless tier is small (roughly ~50 requests/day per IP), each capture takes a few seconds, sites with bot walls/logins may return blank or consent screens, and cached screenshot URLs are hosted by Microlink and may expire (a broken image falls back to the placeholder; ↻ re-captures).
 
 ## v1 scope
+See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next.
+
 In: paste/CSV import, mosaic grid, groups (create/rename/delete/reorder), drag-and-drop, one-click open, localStorage, JSON export/import.
 Out (later): Tree view (v1.1), browser extension reading open tabs, live iframes / in-tile browsing, multi-user sync, auth, API-key Microlink tier.
