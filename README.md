@@ -27,3 +27,11 @@ No build step, no dependencies, no frameworks — one self-contained `index.html
 ## v1 scope
 In: paste/CSV import, mosaic grid, groups (create/rename/delete/reorder), drag-and-drop, one-click open, localStorage, JSON export/import.
 Out (later): Tree view (v1.1), browser extension reading open tabs, live iframes / in-tile browsing, multi-user sync, auth, API-key Microlink tier.
+
+## Folder tree
+```text
+mosaic-windows/
+├── index.html   # the whole app: HTML + CSS + JS, served by GitHub Pages from the repo root
+├── README.md
+└── CLAUDE.md    # agent handoff
+```
