@@ -16,6 +16,7 @@ No build step, no dependencies, no frameworks — one self-contained `index.html
 - **Click a tile** (or ↗) opens it in a new tab. Hover actions: ✎ rename title, ↻ re-capture peek, ✕ remove.
 - Filter box searches URL + title; slider resizes tiles.
 - **Export JSON / Import JSON** — whole board (groups, tiles, titles, cached screenshot URLs).
+- **▦ Mosaic / ☰ Tree** toggles the view (remembered). Tree is a compact outline: group → site → page. A site with 2+ pages in a group folds under one site row; click it to expand. ▸/▾ collapses a group (saved with the board), and **Expand all / Collapse all** do every group and site at once. The filter opens anything that matches. Rows drag between groups like tiles; click a row to open the page, hover for ✎ rename and ✕ remove.
 - State persists in `localStorage` (key `mosaicPeek.v1`).
 
 ## Peeks
@@ -25,8 +26,8 @@ No build step, no dependencies, no frameworks — one self-contained `index.html
 - Caveats: Microlink's free, keyless tier is small (roughly ~50 requests/day per IP), each capture takes a few seconds, sites with bot walls/logins may return blank or consent screens, and cached screenshot URLs are hosted by Microlink and may expire (a broken image falls back to the placeholder; ↻ re-captures).
 
 ## v1 scope
-In: paste/CSV import, mosaic grid, groups (create/rename/delete/reorder), drag-and-drop, one-click open, localStorage, JSON export/import.
-Out (later): Tree view (v1.1), browser extension reading open tabs, live iframes / in-tile browsing, multi-user sync, auth, API-key Microlink tier.
+In: paste/CSV import, mosaic grid, tree view (v1.1), groups (create/rename/delete/reorder), drag-and-drop, one-click open, localStorage, JSON export/import.
+Out (later): browser extension reading open tabs, live iframes / in-tile browsing, multi-user sync, auth, API-key Microlink tier.
 
 ## Folder tree
 ```text
