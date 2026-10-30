@@ -99,6 +99,35 @@ dialog .row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wr
 .trow .d{flex:1;min-width:0;color:var(--mute);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trow .acts{position:static;opacity:0}
 .trow:hover .acts{opacity:1}
+/* forever wall: a pannable canvas that repeats the board in every direction */
+body.walling{overflow:hidden}
+body.walling main{padding:0;min-height:0}
+body.walling #stats{display:none}
+#size{width:110px}
+#wall{position:fixed;left:0;right:0;bottom:0;top:var(--hdrH,56px);overflow:hidden;touch-action:none;cursor:grab;user-select:none;background:radial-gradient(circle at 1px 1px,var(--line) 1px,transparent 1.5px) 0 0/24px 24px,var(--bg)}
+#wall.grabbing{cursor:grabbing}
+#wall.grabbing .wtile{cursor:grabbing}
+.wtile,.wghost{position:absolute;left:0;top:0;border-radius:12px;overflow:hidden;will-change:transform;border:1px solid var(--line)}
+.wtile{background:var(--panel2);cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.18);transition:box-shadow .15s,border-color .15s}
+.wtile:hover{border-color:var(--acc);box-shadow:var(--shadow);z-index:2}
+.wtile.done{opacity:.55}
+.wtile.chipped .note{padding-top:36px}
+.wtile img{pointer-events:none;-webkit-user-drag:none}
+.wtile .wpk{position:absolute;inset:0;display:flex}
+.wtile .wpk>*{flex:1}
+.wtile .wpk img.shot{width:100%;height:100%;object-fit:cover;object-position:top}
+.wcap{position:absolute;left:0;right:0;bottom:0;display:flex;gap:8px;align-items:center;padding:22px 10px 8px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:12px}
+.wcap img{width:14px;height:14px;flex:none}
+.wcap .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wchip{position:absolute;top:8px;left:8px;max-width:60%;font-size:11px;padding:2px 8px;border-radius:999px;background:hsl(var(--h) 55% 45% / .9);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wstar{position:absolute;bottom:8px;right:10px;color:var(--star);text-shadow:0 1px 2px #000a}
+.wacts{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .12s}
+.wtile:hover .wacts{opacity:1}
+@media (hover:none){.wacts{opacity:1}}
+.wacts button{padding:2px 7px;font-size:12px;background:var(--hdr)}
+.wghost{display:flex;align-items:center;justify-content:center;color:var(--mute);border-style:dashed;font-size:22px;opacity:.45;cursor:pointer}
+.wghost:hover{opacity:1;border-color:var(--acc);color:var(--acc)}
+#wallHud{position:fixed;left:12px;bottom:12px;z-index:6;padding:6px 12px;border-radius:999px;background:var(--hdr);border:1px solid var(--line);color:var(--mute);font-size:12px;pointer-events:none;backdrop-filter:blur(6px)}
 /* full-screen preview */
 #pv{position:fixed;inset:0;z-index:30;background:var(--bg);display:none;grid-template-columns:minmax(0,1fr) 300px}
 #pv.open{display:grid}
@@ -137,11 +166,12 @@ dialog .row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wr
 <header>
   <h1>Mosaic <span>Peek</span></h1>
   <button class="primary" id="btnImport" title="Add links, lists, notes or files">+ Add</button>
-  <span class="seg" id="viewSeg"><button data-view="mosaic" title="Mosaic view">▦ Mosaic</button><button data-view="tree" title="Tree view">☰ Tree</button></span>
+  <span class="seg" id="viewSeg"><button data-view="mosaic" title="Mosaic view">▦ Mosaic</button><button data-view="tree" title="Tree view">☰ Tree</button><button data-view="wall" title="Forever wall: drag or scroll to roam">✦ Wall</button></span>
   <button id="btnNewGroup">+ Group</button>
   <input type="search" id="search" placeholder="Search titles, links, notes…">
   <button id="btnFav" title="Show favourites only">☆</button>
   <label class="hint" id="sizeLbl">Size <input type="range" id="size" min="160" max="360" value="220"></label>
+  <span id="wallActs" hidden><button id="btnTeleport" title="Jump somewhere new (T)">⤳ Teleport</button> <button id="btnHome" title="Back to the start">⟲ Reset</button> <button id="btnDrift" title="Slowly drift across the wall">◌ Drift</button></span>
   <span id="treeActs" hidden><button id="btnExpand">Expand all</button> <button id="btnCollapse">Collapse all</button></span>
   <span class="spacer"></span>
   <span id="stats"></span>
@@ -197,6 +227,7 @@ dialog .row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wr
   </div>
   <aside><h4 id="pvGroup"></h4><div id="pvList"></div></aside>
 </div>
+<div id="wallHud" hidden></div>
 <div id="toast"></div>
 
 <script>
@@ -424,7 +455,7 @@ async function fetchPeek(t){
 const board = $('board');
 let filter = '';
 let favOnly = false;
-let view = localStorage.getItem(KEY+'.view') === 'tree' ? 'tree' : 'mosaic';
+let view = localStorage.getItem(KEY+'.view'); if (!['mosaic','tree','wall'].includes(view)) view = 'mosaic';
 const openSites = new Set(); // "gid|host" keys expanded in tree view (sites with 2+ pages start collapsed)
 function render(){
   board.innerHTML = '';
@@ -432,7 +463,10 @@ function render(){
   document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('on', b.dataset.view===view));
   $('sizeLbl').hidden = view==='tree';
   $('treeActs').hidden = view!=='tree';
+  $('wallActs').hidden = $('wallHud').hidden = view!=='wall';
+  document.body.classList.toggle('walling', view==='wall');
   $('btnFav').classList.toggle('on', favOnly); $('btnFav').textContent = favOnly ? '★' : '☆';
+  if (view==='wall'){ renderWall(); updateStats(); fillGroupSelect(); if (pvId) renderPreview(false); return; }
   const total = Object.keys(state.tiles).length;
   if (!total && state.groups.length === 1){
     board.innerHTML = '<div class="empty"><p style="font-size:18px">Your wall is empty.</p><p>Click <b>+ Add</b> to paste links or a to-do list, drop a bookmarks file or list anywhere on the page, or just paste a link.</p></div>';
@@ -576,6 +610,7 @@ function refreshTile(id){
   const el = board.querySelector(`.tile[data-id="${id}"]`);
   if (el && !el.classList.contains('dragging')) el.replaceWith(tileEl(t));
   if (pvId === id) $('pvBig').innerHTML = peekInner(t);
+  board.querySelectorAll(`.wtile[data-id="${id}"]`).forEach(n => { n.querySelector('.wpk').innerHTML = peekInner(t); const c = n.querySelector('.wcap .t'); if (c) c.textContent = label(t); });
 }
 let dragId = null, lastDragEnd = 0;
 function moveTile(id, gid, beforeId){
@@ -600,6 +635,165 @@ function fillGroupSelect(){
   if (state.groups.find(g=>g.id===v)) sel.value = v;
 }
 let toastT; function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'), 2800); }
+
+// ---------- forever wall ----------
+// The visible items are packed once into a "patch" (dense grid, mixed tile sizes), and the patch repeats
+// endlessly in both directions. Only tiles near the viewport exist in the DOM; they are reused while panning.
+const GAP = 12;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches, finePointer = matchMedia('(hover: hover)').matches;
+const wall = { el:null, ox:0, oy:0, vx:0, vy:0, layout:null, nodes:new Map(), raf:0, drag:null, anim:null, hover:false,
+  drift: (localStorage.getItem(KEY+'.drift') || (reduceMotion ? 'off' : 'on')) === 'on' };
+function hash(s){ let h = 2166136261; for (const c of s){ h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function spanOf(t){ // [cols, rows]: favourites are big, the rest get a stable mix so the wall reads as a mosaic
+  const r = hash(t.id);
+  if (t.fav) return [2,2];
+  if (isNote(t)) return r % 4 === 0 ? [2,1] : [1,1];
+  if (r % 7 === 0) return [2,2];
+  if (r % 5 === 0) return [2,1];
+  if (r % 6 === 0) return [1,2];
+  return [1,1];
+}
+function wallDims(){ // tile unit follows the Size slider, capped so a phone still shows about two columns
+  const U = Math.min(+size.value, Math.max(120, Math.floor(innerWidth / 2.3))), H = Math.round(U * 0.68); return { cw:U+GAP, ch:H+GAP };
+}
+function layoutWall(){
+  const items = []; for (const g of state.groups) for (const id of visibleIds(g)) items.push({ t:state.tiles[id], g });
+  const d = wallDims(), vw = wall.el.clientWidth || innerWidth, vh = wall.el.clientHeight || innerHeight;
+  const cells = items.reduce((n, it) => { const [w,h] = spanOf(it.t); return n + w*h; }, 0);
+  const cols = Math.max(4, Math.ceil(Math.sqrt(cells * (vw/d.cw) / Math.max(1, vh/d.ch))));
+  const grid = [], free = (r,c) => !(grid[r] && grid[r][c]), placed = [];
+  let first = 0; // first row that may still have a free cell
+  for (const it of items){
+    let [w,h] = spanOf(it.t); w = Math.min(w, cols);
+    while (grid[first] && grid[first].filter(Boolean).length >= cols) first++;
+    find: for (let r = first;; r++) for (let c = 0; c <= cols-w; c++){
+      let ok = true;
+      for (let i = 0; i < h && ok; i++) for (let j = 0; j < w; j++) if (!free(r+i, c+j)){ ok = false; break; }
+      if (!ok) continue;
+      for (let i = 0; i < h; i++){ grid[r+i] = grid[r+i] || []; for (let j = 0; j < w; j++) grid[r+i][c+j] = true; }
+      placed.push({ t:it.t, g:it.g, c, r, w, h }); break find;
+    }
+  }
+  const rows = Math.max(1, grid.length);
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (free(r,c)) placed.push({ ghost:true, c, r, w:1, h:1 });
+  wall.layout = { placed, d, PW: cols*d.cw, PH: rows*d.ch, count: items.length };
+}
+function wallTileEl(t, g){
+  const n = document.createElement('div'); n.className = 'wtile' + (t.done ? ' done' : '') + (g.id !== UNGROUPED ? ' chipped' : ''); n.dataset.id = t.id; n.title = t.url || label(t);
+  const chip = g.id !== UNGROUPED ? `<div class="wchip" style="--h:${hue(g.name)}">${esc(g.name)}</div>` : '';
+  const cap = isNote(t) ? '' : `<div class="wcap">${icon(t)}<span class="t">${esc(label(t))}</span></div>`;
+  n.innerHTML = `<div class="wpk">${peekInner(t)}</div>${cap}${chip}${t.fav ? '<span class="wstar">★</span>' : ''}<div class="wacts"></div>`;
+  const acts = n.querySelector('.wacts');
+  const fav = btn(t.fav ? '★' : '☆', () => { t.fav = !t.fav; save(); render(); }); fav.title = t.fav ? 'Unfavourite' : 'Favourite'; acts.append(fav);
+  if (t.url){ const o = btn('↗', () => openTile(t.id)); o.title = 'Open in new tab'; acts.append(o); }
+  return n;
+}
+function ghostEl(){ const n = document.createElement('div'); n.className = 'wghost'; n.textContent = '+'; n.title = 'Add something'; return n; }
+function drawWall(){
+  const L = wall.layout; if (!L) return;
+  const vw = wall.el.clientWidth, vh = wall.el.clientHeight, M = 240, need = new Set();
+  let onScreen = 0;
+  const cx0 = Math.floor((wall.ox - M) / L.PW), cx1 = Math.floor((wall.ox + vw + M) / L.PW);
+  const cy0 = Math.floor((wall.oy - M) / L.PH), cy1 = Math.floor((wall.oy + vh + M) / L.PH);
+  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) for (const p of L.placed){
+    const x = cx*L.PW + p.c*L.d.cw - wall.ox, y = cy*L.PH + p.r*L.d.ch - wall.oy;
+    const w = p.w*L.d.cw - GAP, h = p.h*L.d.ch - GAP;
+    if (x + w < -M || y + h < -M || x > vw + M || y > vh + M) continue;
+    const key = `${cx},${cy},${p.ghost ? 'g'+p.c+'_'+p.r : p.t.id}`;
+    need.add(key);
+    let n = wall.nodes.get(key);
+    if (!n){ n = p.ghost ? ghostEl() : wallTileEl(p.t, p.g); n.style.width = w+'px'; n.style.height = h+'px'; wall.el.append(n); wall.nodes.set(key, n); }
+    n.style.transform = `translate3d(${Math.round(x)}px,${Math.round(y)}px,0)`;
+    if (!p.ghost && x + w > 0 && y + h > 0 && x < vw && y < vh) onScreen++;
+  }
+  for (const [k, n] of wall.nodes) if (!need.has(k)){ n.remove(); wall.nodes.delete(k); }
+  $('wallHud').textContent = L.count
+    ? `${L.count} item${L.count===1?'':'s'} · ${onScreen} on screen · ` + (finePointer ? 'drag or scroll to roam · ctrl+scroll to zoom · T to teleport' : 'drag to roam')
+    : (filter || favOnly ? 'Nothing matches. Clear the search or ☆ filter.' : 'The wall is empty. Click any + or + Add to start filling it.');
+}
+function wallTick(){
+  wall.raf = 0;
+  if (view !== 'wall') return;
+  let moving = false;
+  if (wall.anim){
+    const a = wall.anim, k = Math.min(1, (performance.now() - a.t0) / a.dur), e = 1 - Math.pow(1 - k, 3);
+    wall.ox = a.x0 + (a.x1 - a.x0)*e; wall.oy = a.y0 + (a.y1 - a.y0)*e;
+    if (k < 1) moving = true; else wall.anim = null;
+  } else if (!wall.drag && (Math.abs(wall.vx) > 0.05 || Math.abs(wall.vy) > 0.05)){
+    wall.ox += wall.vx; wall.oy += wall.vy; wall.vx *= 0.94; wall.vy *= 0.94; moving = true;
+  }
+  if (wall.drift && !wall.drag && !wall.anim && !wall.hover && !pvId && !dlg.open && !document.hidden){ wall.ox += 0.3; wall.oy += 0.12; moving = true; }
+  drawWall();
+  if (moving) wallKick();
+}
+function wallKick(){ if (!wall.raf) wall.raf = requestAnimationFrame(wallTick); }
+function glide(x1, y1, dur){ wall.vx = wall.vy = 0; wall.anim = { t0:performance.now(), dur: reduceMotion ? 1 : dur, x0:wall.ox, y0:wall.oy, x1, y1 }; wallKick(); }
+function teleport(){
+  const a = Math.random() * Math.PI * 2, D = (1.5 + Math.random()*2.5) * Math.max(innerWidth, innerHeight);
+  glide(wall.ox + Math.cos(a)*D, wall.oy + Math.sin(a)*D, 900);
+}
+function wallHome(){ const L = wall.layout; if (L) glide(Math.round(wall.ox/L.PW)*L.PW, Math.round(wall.oy/L.PH)*L.PH, 600); }
+function setDrift(on){ wall.drift = on; localStorage.setItem(KEY+'.drift', on ? 'on' : 'off'); $('btnDrift').classList.toggle('on', on); $('btnDrift').textContent = on ? '◉ Drift' : '◌ Drift'; wallKick(); }
+function initWall(){
+  const el = wall.el = document.createElement('div'); el.id = 'wall';
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    wall.anim = null; wall.vx = wall.vy = 0;
+    wall.drag = { x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY, t:performance.now(), moved:false, target:e.target };
+    el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', e => {
+    const d = wall.drag; if (!d) return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y, now = performance.now(), dt = Math.max(1, now - d.t);
+    wall.ox -= dx; wall.oy -= dy; wall.vx = -dx/dt*16; wall.vy = -dy/dt*16;
+    d.x = e.clientX; d.y = e.clientY; d.t = now;
+    if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 6){ d.moved = true; el.classList.add('grabbing'); }
+    wallKick();
+  });
+  const end = e => {
+    const d = wall.drag; wall.drag = null; el.classList.remove('grabbing'); if (!d) return;
+    if (!d.moved && e.type === 'pointerup'){
+      wall.vx = wall.vy = 0;
+      const tile = d.target.closest('.wtile');
+      if (tile) openPreview(tile.dataset.id); else if (d.target.closest('.wghost')) $('btnImport').click();
+    } else if (performance.now() - d.t > 90){ wall.vx = wall.vy = 0; } // paused before letting go: no fling
+    wallKick();
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('wheel', e => {
+    e.preventDefault();
+    const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1;
+    if (e.ctrlKey){ size.value = Math.max(+size.min, Math.min(+size.max, Math.round(+size.value * (1 - e.deltaY*k*0.004)))); size.oninput(); return; }
+    wall.anim = null; wall.ox += (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX)*k; if (!(e.shiftKey && !e.deltaX)) wall.oy += e.deltaY*k;
+    wallKick();
+  }, { passive:false });
+  el.addEventListener('mouseover', e => { const h = !!e.target.closest('.wtile,.wghost'); if (h !== wall.hover){ wall.hover = h; wallKick(); } });
+  el.addEventListener('mouseleave', () => { wall.hover = false; wallKick(); });
+}
+function renderWall(){
+  if (!wall.el) initWall();
+  document.documentElement.style.setProperty('--hdrH', document.querySelector('header').offsetHeight + 'px');
+  wall.el.innerHTML = ''; wall.nodes.clear(); board.append(wall.el);
+  layoutWall(); drawWall(); wallKick();
+}
+// Keep the point at the middle of the screen in place when tiles resize.
+function rescaleWall(oldD){
+  if (view !== 'wall' || !wall.layout) return;
+  const d = wallDims(), vw = wall.el.clientWidth, vh = wall.el.clientHeight;
+  wall.ox = (wall.ox + vw/2) * d.cw/oldD.cw - vw/2; wall.oy = (wall.oy + vh/2) * d.ch/oldD.ch - vh/2;
+  renderWall();
+}
+let resizeT; addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (view === 'wall') renderWall(); }, 120); });
+document.addEventListener('keydown', e => {
+  if (view !== 'wall' || pvId || dlg.open || e.target.closest('input,textarea,select,[contenteditable=true]') || e.metaKey || e.ctrlKey || e.altKey) return;
+  const step = { ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1] }[e.key];
+  if (step){ e.preventDefault(); glide(wall.ox + step[0]*innerWidth*0.4, wall.oy + step[1]*innerHeight*0.4, 350); }
+  else if (e.key === 't' || e.key === 'T') teleport();
+});
+$('btnTeleport').onclick = teleport;
+$('btnHome').onclick = wallHome;
+$('btnDrift').onclick = () => setDrift(!wall.drift);
 
 // ---------- hand-off ----------
 // A paste-ready brief for Claude (or any agent): what the item is, where it lives, and the user's own notes.
@@ -723,7 +917,7 @@ $('btnNewGroup').onclick = () => { const n = prompt('Group name', 'New group'); 
 $('search').oninput = e => { filter = e.target.value.trim().toLowerCase(); render(); };
 $('btnFav').onclick = () => { favOnly = !favOnly; render(); };
 const size = $('size');
-size.oninput = () => { document.documentElement.style.setProperty('--tile', size.value+'px'); localStorage.setItem(KEY+'.size', size.value); };
+size.oninput = () => { const old = wall.layout && wall.layout.d; document.documentElement.style.setProperty('--tile', size.value+'px'); localStorage.setItem(KEY+'.size', size.value); if (old) rescaleWall(old); };
 size.value = localStorage.getItem(KEY+'.size') || 220; size.oninput();
 $('btnPeeks').onclick = () => queuePeeks(true);
 $('viewSeg').onclick = e => { const v = e.target.dataset.view; if (!v || v===view) return; view = v; localStorage.setItem(KEY+'.view', v); render(); };
@@ -760,6 +954,7 @@ document.addEventListener('drop', async e => {
 });
 window.addEventListener('storage', e => { if (e.key===KEY){ state = load(); render(); } });
 
+setDrift(wall.drift);
 render(); queuePeeks();
 })();
 </script>

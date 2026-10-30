@@ -14,4 +14,5 @@ Open `index.html` directly, or `python3 -m http.server 8080` from the repo root.
 ## Next
 - Check the Pages URL is still healthy.
 - Tiles are `kind: 'link'` (http(s), Microlink peek) or `kind: 'note'` (text, optional non-web link). Keep old boards (no `kind`) loading.
-- Later: pannable "forever wall" layout, uploaded images/audio tiles, Microlink API key tier, browser extension that reads open tabs, sync.
+- Views: Mosaic (groups grid), Tree (outline), Wall (forever wall: the visible items packed once into a patch that repeats endlessly; only tiles near the viewport are in the DOM, see `layoutWall` / `drawWall`).
+- Later: live/animated tiles on the wall, uploaded images/audio tiles, Microlink API key tier, browser extension that reads open tabs, sync.
