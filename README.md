@@ -1,4 +1,4 @@
-# Mosaic Peek v1
+# Mosaic Peek
 
 Turn a list of URLs into a visual wall of peek tiles, drag them into named groups, click to reopen the real site.
 
@@ -9,15 +9,25 @@ Turn a list of URLs into a visual wall of peek tiles, drag them into named group
 No build step, no dependencies, no frameworks — one self-contained `index.html`.
 
 ## Use
-- **+ Import URLs** — paste one URL per line, or paste/load a CSV (column named `url`/`link`, else first column; optional `title`/`name` column). Bare domains get `https://`. Dedupes by normalized URL (ignores scheme, `www.`, trailing slash, `#hash`). "Sample URLs" fills 12 demo links.
-- You can also just paste URLs anywhere on the page (outside inputs) → they land in Ungrouped.
-- **+ Group** creates a group; double-click a group name (or Rename) to rename; ↑/↓ reorder; Delete moves its tiles back to Ungrouped; "Open all" opens a group's tabs.
-- **Drag** tiles between groups; drop on a tile to insert before it. Clicks within 300 ms of a drag are ignored, so dragging never opens a tab.
-- **Click a tile** (or ↗) opens it in a new tab. Hover actions: ✎ rename title, ↻ re-capture peek, ✕ remove.
-- Filter box searches URL + title; slider resizes tiles.
-- **Export JSON / Import JSON** — whole board (groups, tiles, titles, cached screenshot URLs).
-- **▦ Mosaic / ☰ Tree** toggles the view (remembered). Tree is a compact outline: group → site → page. A site with 2+ pages in a group folds under one site row; click it to expand. ▸/▾ collapses a group (saved with the board), and **Expand all / Collapse all** do every group and site at once. The filter opens anything that matches. Rows drag between groups like tiles; click a row to open the page, hover for ✎ rename and ✕ remove.
-- State persists in `localStorage` (key `mosaicPeek.v1`).
+A mosaic of mini windows for everything you've saved or started: links, unfinished projects, to-dos, files, songs. Find something, write what you want, copy the hand-off and keep building in Claude.
+
+- **+ Add**: paste one item per line. Links become live-preview tiles. Anything else (a to-do, an idea, a project you never finished) becomes a note tile. Markdown lists work, including `- [ ]` / `- [x]` (checked = done) and `[title](url) note`. CSV uses columns named `url`/`link`, `title`/`name`, `note`/`description` and `group`/`folder`. "Samples" fills in a mix of links and notes.
+- **Load file…** (in Add) or **drop files anywhere** on the page:
+  - **Browser bookmarks**: the HTML file from any browser's "Export bookmarks". Each folder becomes a group.
+  - **Chrome's `Bookmarks` file**, Firefox JSON backups, a JSON array of links/strings/objects, or `{ "Group name": [ ... ] }`.
+  - **CSV / TXT / Markdown** lists, which load into the box first so you can check them.
+  - Non-web links such as `file://…`, `spotify:…` and `mailto:` are kept on note tiles. Bookmarklets and `chrome://` links are skipped.
+  - Dropping onto a group adds to that group. Links dragged in from other tabs work too, and you can paste URLs anywhere on the page (outside inputs).
+- **Click a tile** to open the full-screen preview: a big screenshot or note card, with the rest of its group listed alongside. Use ←/→ to step through and Esc to close. Edit the title, link and **notes** there, and mark it ☆ favourite or ✓ done. **↗ Open** opens the real site.
+- **Copy hand-off** (in the preview) copies a brief for Claude made of the item, its link, its group and your notes. Each group's **Hand-off** button does the same for the whole group ("help me pick what to finish next").
+- **+ Group** creates a group. Double-click a group name (or use Rename) to rename it, ↑/↓ reorders, Delete moves its tiles back to Ungrouped, and "Open all" opens every link in the group.
+- **Drag** tiles between groups. Drop on a tile to insert before it. Clicks within 300 ms of a drag are ignored.
+- Hover a tile for ☆ favourite, ↗ open, ↻ re-capture the preview and ✕ remove.
+- The search box covers titles, links and notes. **☆** shows favourites only, and the slider resizes tiles.
+- **◐ Auto / ☀ Light / ☾ Dark** sets the theme (Auto follows your system).
+- **▦ Mosaic / ☰ Tree** toggles the view (remembered). Tree is a compact outline: group → site → page. A site with 2+ pages in a group folds under one site row; click it to expand. ▸/▾ collapses a group (saved with the board), and **Expand all / Collapse all** do every group and site at once. The search opens anything that matches. Rows drag between groups like tiles; click a row to preview it.
+- **⋯ menu**: Retry previews, Export board (JSON), Restore board (JSON), Clear board. A board export includes groups, tiles, notes, favourites and cached screenshot URLs.
+- State persists in `localStorage` (key `mosaicPeek.v1`; older boards load as-is).
 
 ## Peeks
 - Favicon: `https://www.google.com/s2/favicons?domain=…&sz=64`.
@@ -25,9 +35,9 @@ No build step, no dependencies, no frameworks — one self-contained `index.html
 - On failure → styled placeholder (domain + favicon, color from domain). On HTTP 429 / rate-limit → remaining queue switches to "preview rate-limited" placeholders for 10 min; **↻ Peeks** retries failed/limited ones.
 - Caveats: Microlink's free, keyless tier is small (roughly ~50 requests/day per IP), each capture takes a few seconds, sites with bot walls/logins may return blank or consent screens, and cached screenshot URLs are hosted by Microlink and may expire (a broken image falls back to the placeholder; ↻ re-captures).
 
-## v1 scope
-In: paste/CSV import, mosaic grid, tree view (v1.1), groups (create/rename/delete/reorder), drag-and-drop, one-click open, localStorage, JSON export/import.
-Out (later): browser extension reading open tabs, live iframes / in-tile browsing, multi-user sync, auth, API-key Microlink tier.
+## Scope
+In: paste/CSV/Markdown/bookmark/JSON import, link + note tiles, mosaic grid, tree view, full-screen preview, notes, favourites, done, Claude hand-off, light/dark, groups (create/rename/delete/reorder), drag-and-drop (tiles and files), localStorage, JSON export/import.
+Later: a pannable "forever wall" layout with teleport, uploaded images/audio as tiles, browser extension reading open tabs, live iframes / in-tile browsing, multi-user sync, API-key Microlink tier.
 
 ## Folder tree
 ```text

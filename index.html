@@ -5,64 +5,84 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mosaic Peek</title>
 <style>
-:root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--line:#2a2f3a;--fg:#e6e8ee;--mute:#8b93a4;--acc:#6aa9ff;--warn:#ff7a7a;--ok:#57d38c}
+:root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--line:#2a2f3a;--fg:#e6e8ee;--mute:#8b93a4;--acc:#6aa9ff;--onacc:#071223;--warn:#ff7a7a;--ok:#57d38c;--star:#ffcf5a;--hdr:rgba(15,17,21,.92);--well:#0b0d11;--over:#1a2232;--phL:18%;--phD:10%;--shadow:0 18px 50px rgba(0,0,0,.5);color-scheme:dark}
+:root[data-theme=light]{--bg:#f4f5f8;--panel:#fff;--panel2:#eef0f4;--line:#d8dce4;--fg:#1a1d24;--mute:#5d6676;--acc:#2f6fdb;--onacc:#fff;--warn:#cc3333;--ok:#16884a;--star:#d99a00;--hdr:rgba(255,255,255,.92);--well:#e8ebf0;--over:#e4eeff;--phL:93%;--phD:85%;--shadow:0 18px 50px rgba(20,30,50,.18);color-scheme:light}
+@media (prefers-color-scheme: light){:root:not([data-theme]){--bg:#f4f5f8;--panel:#fff;--panel2:#eef0f4;--line:#d8dce4;--fg:#1a1d24;--mute:#5d6676;--acc:#2f6fdb;--onacc:#fff;--warn:#cc3333;--ok:#16884a;--star:#d99a00;--hdr:rgba(255,255,255,.92);--well:#e8ebf0;--over:#e4eeff;--phL:93%;--phD:85%;--shadow:0 18px 50px rgba(20,30,50,.18);color-scheme:light}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:rgba(15,17,21,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+header{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--hdr);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
 header h1{font-size:16px;margin:0 12px 0 0;letter-spacing:.3px}
 header h1 span{color:var(--acc)}
-button,.btn{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit}
-button:hover,.btn:hover{border-color:var(--acc)}
-button.primary{background:var(--acc);color:#071223;border-color:var(--acc);font-weight:600}
+button,.btn,.menu summary{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit}
+button:hover,.btn:hover,.menu summary:hover{border-color:var(--acc)}
+button.primary{background:var(--acc);color:var(--onacc);border-color:var(--acc);font-weight:600}
 button.danger:hover{border-color:var(--warn);color:var(--warn)}
-input[type=text],input[type=search],textarea{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit}
-input[type=search]{min-width:200px}
+button.on{border-color:var(--star);color:var(--star)}
+input[type=text],input[type=search],textarea,select{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit}
+input[type=search]{flex:0 1 240px;min-width:140px}
 .spacer{flex:1}
 #stats{color:var(--mute);font-size:12px}
-main{padding:16px;display:flex;flex-direction:column;gap:18px}
+.menu{position:relative}
+.menu summary{list-style:none;user-select:none}
+.menu summary::-webkit-details-marker{display:none}
+.menu .pop{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px;min-width:220px;box-shadow:var(--shadow);z-index:10}
+.menu .pop button{text-align:left;background:transparent;border-color:transparent}
+.menu .pop button:hover{background:var(--panel2)}
+main{padding:16px;display:flex;flex-direction:column;gap:18px;min-height:calc(100vh - 60px)}
+body.dropping main{outline:2px dashed var(--acc);outline-offset:-8px;border-radius:14px}
 .group{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px 14px;transition:border-color .15s,background .15s}
-.group.over{border-color:var(--acc);background:#1a2232}
-.ghead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.group.over{border-color:var(--acc);background:var(--over)}
+.ghead{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .ghead .name{font-weight:600;font-size:15px;outline:none;padding:2px 4px;border-radius:4px}
 .ghead .name[contenteditable=true]:focus{background:var(--panel2)}
 .ghead .count{color:var(--mute);font-size:12px}
 .ghead button{padding:3px 8px;font-size:12px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tile,220px),1fr));gap:12px;min-height:60px}
-.grid:empty::after{content:"Drop tiles here";color:var(--mute);font-size:12px;border:1px dashed var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;min-height:60px}
+.grid:empty::after{content:"Drop tiles or files here";color:var(--mute);font-size:12px;border:1px dashed var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;min-height:60px}
 .tile{position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;user-select:none;transition:transform .1s,border-color .1s}
 .tile:hover{border-color:var(--acc);transform:translateY(-1px)}
 .tile.dragging{opacity:.35}
 .tile.insert{box-shadow:-4px 0 0 0 var(--acc)}
-.peek{aspect-ratio:16/10;background:#0b0d11 center top/cover no-repeat;display:flex;align-items:center;justify-content:center;position:relative}
+.tile.done .peek,.tile.done .meta .t{opacity:.5}
+.tile.done .meta .t{text-decoration:line-through}
+.badge{position:absolute;bottom:6px;left:8px;display:flex;gap:4px;font-size:13px;pointer-events:none}
+.badge .s{color:var(--star);text-shadow:0 1px 2px #0008}
+.badge .k{color:var(--ok);text-shadow:0 1px 2px #0008}
+.peek{aspect-ratio:16/10;background:var(--well);display:flex;align-items:center;justify-content:center;position:relative}
 .peek img.shot{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
-.ph{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--mute);font-size:12px;text-align:center;padding:8px;width:100%;height:100%;justify-content:center;background:linear-gradient(135deg,hsl(var(--h,220) 30% 18%),hsl(var(--h,220) 30% 10%))}
+.ph,.note{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--mute);font-size:12px;text-align:center;padding:8px;width:100%;height:100%;justify-content:center;background:linear-gradient(135deg,hsl(var(--h,220) 30% var(--phL)),hsl(var(--h,220) 30% var(--phD)))}
 .ph img{width:40px;height:40px;border-radius:8px;background:#fff1}
 .ph .dom{color:var(--fg);font-weight:600;font-size:13px;word-break:break-all}
 .ph .st{font-size:11px;opacity:.7}
+.note{align-items:flex-start;justify-content:flex-start;text-align:left;padding:12px 14px;gap:6px;background:linear-gradient(150deg,hsl(var(--h,220) 45% var(--phL)),hsl(calc(var(--h,220) + 40) 40% var(--phD)))}
+.note .nk{font-size:11px;letter-spacing:.4px;text-transform:uppercase;opacity:.8}
+.note .nt{color:var(--fg);font-weight:700;font-size:15px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.note .nb{white-space:pre-line;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
 .meta{display:flex;align-items:center;gap:8px;padding:8px 10px}
-.meta img{width:16px;height:16px;flex:none}
+.meta img,.meta .ic{width:16px;height:16px;flex:none;font-size:13px;line-height:16px;text-align:center}
 .meta .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .meta .d{color:var(--mute);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .acts{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .12s}
-.tile:hover .acts{opacity:1}
-.acts button{padding:2px 7px;font-size:12px;background:rgba(15,17,21,.85)}
-dialog{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:12px;width:min(640px,92vw);padding:16px}
+.tile:hover .acts,.tile:focus-within .acts{opacity:1}
+@media (hover:none){.tile .acts{opacity:1}}
+.acts button{padding:2px 7px;font-size:12px;background:var(--hdr)}
+dialog{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:12px;width:min(680px,92vw);padding:16px}
 dialog::backdrop{background:rgba(0,0,0,.6)}
 dialog textarea{width:100%;min-height:220px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
 dialog .row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .hint{color:var(--mute);font-size:12px}
-#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:40;box-shadow:var(--shadow)}
 #toast.show{opacity:1}
 .empty{color:var(--mute);text-align:center;padding:60px 0}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{border:0;border-radius:0;background:var(--panel)}
-.seg button.on{background:var(--acc);color:#071223;font-weight:600}
+.seg button.on{background:var(--acc);color:var(--onacc);font-weight:600}
 .tree .group{padding:6px 10px 8px}
 .tree .ghead{margin-bottom:4px}
 .twisty{background:none;border:0;padding:0 4px;color:var(--mute);font-size:12px;width:20px}
 .twisty:hover{color:var(--fg)}
 .trows{display:flex;flex-direction:column;min-height:28px}
-.trows:empty::after{content:"Drop pages here";color:var(--mute);font-size:12px;border:1px dashed var(--line);border-radius:8px;padding:6px 10px}
+.trows:empty::after{content:"Drop items here";color:var(--mute);font-size:12px;border:1px dashed var(--line);border-radius:8px;padding:6px 10px}
 .site{display:flex;align-items:center;gap:6px;padding:3px 4px;color:var(--mute);font-size:12px;cursor:pointer;border-radius:6px}
 .site:hover{background:var(--panel2)}
 .site img{width:14px;height:14px}
@@ -72,48 +92,111 @@ dialog .row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wr
 .trow:hover{background:var(--panel2);border-color:var(--line)}
 .trow.dragging{opacity:.35}
 .trow.insert{box-shadow:0 -2px 0 0 var(--acc)}
-.trow img{width:16px;height:16px;flex:none}
+.trow.done .t{text-decoration:line-through;opacity:.6}
+.trow img,.trow .ic{width:16px;height:16px;flex:none;font-size:13px;line-height:16px;text-align:center}
 .trow .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+.trow .s{color:var(--star)}
 .trow .d{flex:1;min-width:0;color:var(--mute);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trow .acts{position:static;opacity:0}
 .trow:hover .acts{opacity:1}
+/* full-screen preview */
+#pv{position:fixed;inset:0;z-index:30;background:var(--bg);display:none;grid-template-columns:minmax(0,1fr) 300px}
+#pv.open{display:grid}
+#pv .stage{display:flex;flex-direction:column;min-width:0;min-height:0;padding:12px 18px 16px;gap:12px;overflow:auto}
+#pv .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#pv .big{flex:1 0 260px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--well);display:flex}
+#pv .big>*{flex:1}
+#pv .big img.shot{width:100%;height:100%;object-fit:contain;object-position:top center;display:block}
+#pv .big .note{padding:28px 32px}
+#pv .big .note .nt{font-size:28px;-webkit-line-clamp:4}
+#pv .big .note .nb{font-size:15px;-webkit-line-clamp:8}
+#pv .big .ph .dom{font-size:18px}
+#pv .fields{display:grid;gap:8px}
+#pv .fields input,#pv .fields textarea{width:100%}
+#pv .fields textarea{min-height:90px;resize:vertical}
+#pv aside{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:10px}
+#pv aside h4{margin:6px 6px 10px;font-size:13px;color:var(--mute);font-weight:600}
+.side{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer}
+.side:hover{background:var(--panel2)}
+.side.on{background:var(--panel2);box-shadow:inset 3px 0 0 var(--acc)}
+.side img,.side .ic{width:16px;height:16px;flex:none;font-size:13px;line-height:16px;text-align:center}
+.side span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:760px){
+  header{padding:8px 10px;gap:8px}
+  main{padding:10px}
+  #sizeLbl{display:none!important}
+  input[type=search]{flex:1 1 140px}
+  #pv{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
+  #pv .stage{padding:10px}
+  #pv aside{border-left:0;border-top:1px solid var(--line);max-height:28vh}
+  #pv .big .note .nt{font-size:22px}
+}
 </style>
 </head>
 <body>
 <header>
   <h1>Mosaic <span>Peek</span></h1>
-  <button class="primary" id="btnImport">+ Import URLs</button>
+  <button class="primary" id="btnImport" title="Add links, lists, notes or files">+ Add</button>
   <span class="seg" id="viewSeg"><button data-view="mosaic" title="Mosaic view">▦ Mosaic</button><button data-view="tree" title="Tree view">☰ Tree</button></span>
   <button id="btnNewGroup">+ Group</button>
-  <input type="search" id="search" placeholder="Filter tiles…">
+  <input type="search" id="search" placeholder="Search titles, links, notes…">
+  <button id="btnFav" title="Show favourites only">☆</button>
   <label class="hint" id="sizeLbl">Size <input type="range" id="size" min="160" max="360" value="220"></label>
   <span id="treeActs" hidden><button id="btnExpand">Expand all</button> <button id="btnCollapse">Collapse all</button></span>
   <span class="spacer"></span>
   <span id="stats"></span>
-  <button id="btnPeeks" title="Retry failed / fetch missing screenshots">↻ Peeks</button>
-  <button id="btnExport">Export JSON</button>
-  <button id="btnImportJson">Import JSON</button>
-  <button class="danger" id="btnClear">Clear</button>
+  <button id="btnTheme" title="Theme: auto / light / dark">◐</button>
+  <details class="menu" id="menu"><summary title="More">⋯</summary><div class="pop">
+    <button id="btnPeeks" title="Retry failed / fetch missing screenshots">↻ Retry previews</button>
+    <button id="btnExport">⤓ Export board (JSON)</button>
+    <button id="btnImportJson">⤒ Restore board (JSON)</button>
+    <button class="danger" id="btnClear">Clear board</button>
+  </div></details>
   <input type="file" id="fileJson" accept=".json,application/json" hidden>
-  <input type="file" id="fileCsv" accept=".csv,.txt,text/csv,text/plain" hidden>
+  <input type="file" id="fileAny" accept=".csv,.txt,.md,.markdown,.json,.html,.htm,text/csv,text/plain,text/markdown,application/json,text/html" multiple hidden>
 </header>
 <main id="board"></main>
 
 <dialog id="dlgImport">
-  <h3 style="margin-top:0">Import URLs</h3>
-  <p class="hint">One URL per line, or paste/upload CSV (uses a column named <code>url</code>, otherwise the first column). Duplicates are skipped. Bare domains like <code>github.com</code> get <code>https://</code>.</p>
-  <textarea id="taImport" placeholder="https://example.com&#10;github.com&#10;news.ycombinator.com"></textarea>
+  <h3 style="margin-top:0">Add to your mosaic</h3>
+  <p class="hint">One item per line: links, to-dos, unfinished projects, ideas. Lines that aren't links become note tiles. Markdown lists, <code>- [ ]</code> / <code>- [x]</code> and <code>[title](url)</code> work, and CSV uses columns named <code>url</code>, <code>title</code>, <code>note</code>, <code>group</code>.<br>
+  <b>Load file</b> also takes browser bookmark exports (HTML), Chrome's <code>Bookmarks</code> file and JSON lists; folders become groups. You can also drop files or links anywhere on the page.</p>
+  <textarea id="taImport" placeholder="https://example.com&#10;github.com&#10;- [ ] Finish the portfolio redesign&#10;[Cool shader](https://shadertoy.com) - remix this"></textarea>
   <div class="row">
     <label class="hint">Into group:
       <select id="selGroup"></select>
     </label>
-    <button id="btnCsv">Load CSV file…</button>
-    <button id="btnSample">Sample URLs</button>
+    <button id="btnFile">Load file…</button>
+    <button id="btnSample">Samples</button>
     <span class="spacer"></span>
     <button id="btnCancel">Cancel</button>
-    <button class="primary" id="btnDoImport">Import</button>
+    <button class="primary" id="btnDoImport">Add</button>
   </div>
 </dialog>
+
+<div id="pv" role="dialog" aria-modal="true" aria-label="Preview">
+  <div class="stage">
+    <div class="bar">
+      <button id="pvClose" title="Close (Esc)">✕</button>
+      <button id="pvPrev" title="Previous (←)">‹</button>
+      <button id="pvNext" title="Next (→)">›</button>
+      <span id="pvPos" class="hint"></span>
+      <span class="spacer"></span>
+      <button id="pvFav">☆ Favourite</button>
+      <button id="pvDone">✓ Done</button>
+      <button id="pvOpen">↗ Open</button>
+      <button class="danger" id="pvDel">Remove</button>
+      <button class="primary" id="pvHand" title="Copy a brief for Claude about this item">Copy hand-off</button>
+    </div>
+    <div class="big" id="pvBig"></div>
+    <div class="fields">
+      <input type="text" id="pvTitle" placeholder="Title">
+      <input type="text" id="pvUrl" placeholder="Link (optional): https://…, file://…, spotify:…">
+      <textarea id="pvNote" placeholder="Notes: what is this, and what do you want to change or build from it? This goes into the hand-off."></textarea>
+    </div>
+  </div>
+  <aside><h4 id="pvGroup"></h4><div id="pvList"></div></aside>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -124,21 +207,29 @@ const UNGROUPED = 'ungrouped';
 const MICROLINK = u => `https://api.microlink.io/?url=${encodeURIComponent(u)}&screenshot=true&meta=false`;
 const FAVICON = d => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64`;
 const CONCURRENCY = 2;
+const $ = id => document.getElementById(id);
 
 // ---------- state ----------
-// state = { groups:[{id,name,tileIds:[]}], tiles:{id:{id,url,title,shot,peek:'none'|'ok'|'fail'|'limited',added}} }
+// state = { groups:[{id,name,tileIds:[],collapsed}], tiles:{id:{id,kind:'link'|'note',url,title,note,fav,done,shot,peek,added}} }
+// kind 'link' = http(s) page with a screenshot peek; kind 'note' = text item, optionally with a non-web link (file://, spotify:, …).
+// peek: 'none'|'queued'|'pending'|'ok'|'fail'|'limited' for links, 'na' for notes.
 let state = load();
-function blank(){ return { version:1, groups:[{id:UNGROUPED,name:'Ungrouped',tileIds:[]}], tiles:{} }; }
+function blank(){ return { version:2, groups:[{id:UNGROUPED,name:'Ungrouped',tileIds:[]}], tiles:{} }; }
 function load(){
   try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.groups && s.tiles) return sanitize(s); } catch(e){}
   return blank();
 }
 function sanitize(s){
+  s.version = 2;
   if (!s.groups.find(g=>g.id===UNGROUPED)) s.groups.unshift({id:UNGROUPED,name:'Ungrouped',tileIds:[]});
   const seen = new Set();
   for (const g of s.groups){ g.tileIds = (g.tileIds||[]).filter(id => s.tiles[id] && !seen.has(id) && seen.add(id)); }
   for (const id of Object.keys(s.tiles)) if (!seen.has(id)) s.groups.find(g=>g.id===UNGROUPED).tileIds.push(id);
-  for (const t of Object.values(s.tiles)) if (t.peek === 'pending') t.peek = 'none';
+  for (const t of Object.values(s.tiles)){
+    if (t.kind !== 'note') t.kind = 'link';
+    if (t.kind === 'note') t.peek = 'na';
+    else if (t.peek === 'pending' || t.peek === 'queued' || t.peek === 'na') t.peek = 'none';
+  }
   return s;
 }
 let saveT; function save(){ clearTimeout(saveT); saveT = setTimeout(flush, 80); }
@@ -147,10 +238,14 @@ addEventListener('pagehide', () => { if (saveT) flush(); });
 const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
 
 // ---------- url helpers ----------
+const FILE_EXT = /\.(txt|md|pdf|png|jpe?g|gif|webp|svg|docx?|xlsx?|pptx?|csv|json|zip|mov|mp4|wav|flac|aiff?|psd|ai|fig|sketch|key|pages|numbers|html?)$/i;
 function normalize(raw){
   let s = String(raw||'').trim().replace(/^["'<(]+|[">),;']+$/g,'');
   if (!s) return null;
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) { if (!/^[\w-]+(\.[\w-]+)+/.test(s)) return null; s = 'https://' + s; }
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) {
+    if (!/^[\w-]+(\.[\w-]+)*\.[a-z]{2,}(?=[\/:?#]|$)/i.test(s) || FILE_EXT.test(s.split(/[?#]/)[0])) return null;
+    s = 'https://' + s;
+  }
   let u; try { u = new URL(s); } catch(e){ return null; }
   if (!/^https?:$/.test(u.protocol)) return null;
   u.hash = '';
@@ -159,12 +254,19 @@ function normalize(raw){
   if (u.pathname === '/' && !u.search) out = out.replace(/\/$/,'');
   return out;
 }
+// Non-web links worth keeping on a note tile (files, apps, mail); browser-internal schemes are dropped.
+const OTHER_LINK = /^(?:[a-z][\w+.-]*:\/\/\S+|(?:mailto|tel|sms|spotify|magnet):\S+)$/i;
+const JUNK_LINK = /^(javascript|data|place|chrome|about|edge|blob|moz-extension|chrome-extension):/i;
 const dedupeKey = url => url.replace(/^https?:\/\/(www\.)?/i,'').replace(/\/$/,'').toLowerCase();
 const host = url => { try { return new URL(url).hostname.replace(/^www\./,''); } catch(e){ return url; } };
 const hue = s => { let h=0; for (const c of s) h=(h*31+c.charCodeAt(0))%360; return h; };
 function defaultTitle(url){
   try { const u = new URL(url); const p = u.pathname.replace(/\/$/,''); return host(url) + (p ? p : ''); } catch(e){ return url; }
 }
+function linkName(raw){ try { return decodeURIComponent(raw.split(/[\/:]/).filter(Boolean).pop() || raw); } catch(e){ return raw; } }
+const isNote = t => t.kind === 'note';
+const label = t => t.title || (isNote(t) ? (t.url ? linkName(t.url) : 'Untitled note') : defaultTitle(t.url));
+const keyOf = t => isNote(t) ? (t.url ? 'u:'+t.url.toLowerCase() : 'n:'+(t.title||'').trim().toLowerCase()) : dedupeKey(t.url);
 
 // ---------- parsing ----------
 function parseCSVLine(line){
@@ -174,40 +276,122 @@ function parseCSVLine(line){
     else if (c==='"') q=true; else if (c===','||c==='\t') { out.push(cur); cur=''; } else cur+=c; }
   out.push(cur); return out;
 }
+// One list line → item. Understands "- ", "1. ", "- [ ]", "- [x]", "[title](url) note", "title - https://…".
+function cleanLine(l){
+  let done = false;
+  l = l.replace(/^(?:[-*+•]|\d+[.)])\s+/, '');
+  const cb = l.match(/^\[( |x|X)\]\s*/); if (cb){ done = cb[1] !== ' '; l = l.slice(cb[0].length); }
+  const md = l.match(/^\[([^\]]+)\]\((\S+?)\)\s*(.*)$/);
+  if (md) return { title: md[1].trim(), url: md[2], note: md[3].replace(/^[-–—:|]\s*/,'').trim(), done };
+  const m = l.match(/\b(?:https?|file):\/\/\S+/i);
+  if (m){ const rest = (l.slice(0,m.index) + ' ' + l.slice(m.index+m[0].length)).replace(/^[\s\-–—:|]+|[\s\-–—:|]+$/g,'').trim(); return { url:m[0], title:rest, done }; }
+  return { url:l, done };
+}
 function parseInput(text){
   const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
   if (!lines.length) return [];
-  const looksCSV = lines.some(l => /[,\t]/.test(l));
-  if (!looksCSV) return lines.map(l => ({url:l}));
   const head = parseCSVLine(lines[0]).map(h=>h.trim().toLowerCase());
-  let ui = head.findIndex(h => ['url','link','href','address'].includes(h));
-  let ti = head.findIndex(h => ['title','name'].includes(h));
-  let rows = lines;
-  if (ui >= 0) rows = lines.slice(1); else { ui = 0; ti = -1; if (!normalize(parseCSVLine(lines[0])[0])) rows = lines.slice(1); }
-  return rows.map(l => { const c = parseCSVLine(l); return { url:c[ui], title: ti>=0 ? (c[ti]||'').trim() : '' }; });
+  const ui = head.findIndex(h => ['url','link','href','address','uri'].includes(h));
+  const csv = lines.some(l=>/[,\t]/.test(l)) && (ui >= 0 || lines.slice(1).every(l => normalize(parseCSVLine(l)[0])));
+  if (!csv) return lines.map(cleanLine);
+  const col = ui >= 0 ? ui : 0;
+  const find = names => ui >= 0 ? head.findIndex(h => names.includes(h)) : -1;
+  const ti = find(['title','name']), ni = find(['note','notes','description','desc']), gi = find(['group','folder','category','list','tag']);
+  const rows = (ui >= 0 || !normalize(parseCSVLine(lines[0])[0])) ? lines.slice(1) : lines;
+  return rows.map(l => { const c = parseCSVLine(l); const v = k => k>=0 ? (c[k]||'').trim() : ''; return { url:c[col], title:v(ti), note:v(ni), group:v(gi) }; });
 }
-function addUrls(items, groupId){
-  const existing = new Set(Object.values(state.tiles).map(t => dedupeKey(t.url)));
-  const g = state.groups.find(x=>x.id===groupId) || state.groups.find(x=>x.id===UNGROUPED);
-  let added=0, dup=0, bad=0;
+const ROOTS = /^(bookmarks( bar| toolbar| menu)?|other bookmarks|mobile bookmarks|favou?rites( bar)?|menu|toolbar|unfiled|mobile|root)$/i;
+// Netscape bookmark HTML (every browser's "Export bookmarks"). Innermost folder → group.
+function fromBookmarksHtml(text){
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  const folderOf = a => {
+    for (let dl = a.closest('dl'); dl; dl = dl.parentElement && dl.parentElement.closest('dl')){
+      const p = dl.parentElement, prev = dl.previousElementSibling;
+      const h = (p && p.tagName === 'DT' && p.querySelector(':scope > h3')) || (prev && prev.tagName === 'H3' ? prev : null);
+      if (h){ const n = h.textContent.trim(); return ROOTS.test(n) ? '' : n; }
+    }
+    return '';
+  };
+  return [...doc.querySelectorAll('a[href]')].map(a => ({ url:a.getAttribute('href'), title:a.textContent.trim(), group:folderOf(a) }));
+}
+// Chrome "Bookmarks" file, Firefox JSON backup, arrays of strings/objects, or { "Group": [...] } maps.
+function fromJson(j){
+  const out = [];
+  const walk = (n, folder) => {
+    if (n == null) return;
+    if (typeof n === 'string'){ out.push({ url:n, group:folder }); return; }
+    if (Array.isArray(n)){ n.forEach(x => walk(x, folder)); return; }
+    if (typeof n !== 'object') return;
+    const url = n.url || n.uri || n.href || n.link || '';
+    const title = n.title || n.name || n.label || n.text || '';
+    const kids = n.children || n.items || n.bookmarks || n.links;
+    if (!url && !title && !kids){ for (const [k,v] of Object.entries(n)) if (v && typeof v === 'object' || typeof v === 'string') walk(v, k); return; }
+    if (url || (!kids && title)) out.push({ url, title, note: n.note || n.notes || n.description || n.desc || '', group: n.group || n.folder || n.category || n.list || folder, done: !!(n.done || n.completed), fav: !!(n.fav || n.favorite || n.starred) });
+    if (kids){ const name = url ? '' : String(title).trim(); walk(kids, name && !ROOTS.test(name) ? name : folder); }
+  };
+  if (j && j.roots && typeof j.roots === 'object') walk(Object.values(j.roots), '');
+  else walk(j, '');
+  return out;
+}
+function itemsFromFile(name, text){
+  if (/\.html?$/i.test(name) || /<dt>\s*<a\s/i.test(text)) return fromBookmarksHtml(text);
+  if (/\.json$/i.test(name) || /^\s*[\[{]/.test(text)){
+    const j = JSON.parse(text);
+    if (j && j.groups && j.tiles) return { board:j };
+    return fromJson(j);
+  }
+  return parseInput(text);
+}
+function groupNamed(name){
+  name = String(name).trim();
+  let g = state.groups.find(x => x.name.toLowerCase() === name.toLowerCase());
+  if (!g){ g = { id:uid(), name, tileIds:[] }; state.groups.push(g); }
+  return g;
+}
+function addItems(items, groupId){
+  const existing = new Set(Object.values(state.tiles).map(keyOf));
+  const fallback = state.groups.find(x=>x.id===groupId) || state.groups.find(x=>x.id===UNGROUPED);
+  let links=0, notes=0, dup=0, skipped=0;
   for (const it of items){
-    const url = normalize(it.url);
-    if (!url){ bad++; continue; }
-    const k = dedupeKey(url);
+    const raw = String(it.url||'').trim(), title = String(it.title||'').trim(), url = normalize(raw);
+    let t;
+    if (url) t = { kind:'link', url, title };
+    else if (JUNK_LINK.test(raw)) { skipped++; continue; }
+    else if (OTHER_LINK.test(raw)) t = { kind:'note', url:raw, title };
+    else if (title || raw) t = { kind:'note', url:'', title: title || raw };
+    else continue;
+    const k = keyOf(t);
     if (existing.has(k)){ dup++; continue; }
     existing.add(k);
-    const id = uid();
-    state.tiles[id] = { id, url, title: it.title || '', shot:'', peek:'none', added: Date.now() };
-    g.tileIds.push(id); added++;
+    Object.assign(t, { id:uid(), note:String(it.note||'').trim(), shot:'', peek: t.kind==='link' ? 'none' : 'na', added:Date.now() });
+    if (it.done) t.done = true;
+    if (it.fav) t.fav = true;
+    state.tiles[t.id] = t;
+    (it.group && String(it.group).trim() ? groupNamed(it.group) : fallback).tileIds.push(t.id);
+    t.kind === 'link' ? links++ : notes++;
   }
   save(); render(); queuePeeks();
-  toast(`Added ${added}` + (dup?` · ${dup} duplicate`:'') + (bad?` · ${bad} invalid`:''));
+  toast(`Added ${links} link${links===1?'':'s'}` + (notes?` · ${notes} note${notes===1?'':'s'}`:'') + (dup?` · ${dup} duplicate`:'') + (skipped?` · ${skipped} skipped`:''));
+}
+async function importFile(f, groupId){
+  let res;
+  try { res = itemsFromFile(f.name, await f.text()); } catch(e){ toast(`Couldn't read ${f.name}: ${e.message}`); return; }
+  if (res.board){ restoreBoard(res.board); return; }
+  if (!res.length){ toast(`Nothing found in ${f.name}`); return; }
+  addItems(res, groupId || UNGROUPED);
+}
+function restoreBoard(s){
+  if (!s.groups || !s.tiles){ toast('Import failed: missing groups/tiles'); return; }
+  if (Object.keys(state.tiles).length && !confirm('Replace the current board with this file?')) return;
+  closePreview(false);
+  state = sanitize({ version:2, groups:s.groups, tiles:s.tiles }); save(); render(); queuePeeks(); toast('Board restored');
 }
 
 // ---------- peeks (Microlink) ----------
 const queue = []; let active = 0; let limitedUntil = 0;
 function queuePeeks(retry=false){
   for (const t of Object.values(state.tiles)){
+    if (isNote(t)) continue;
     if (t.peek === 'none' || (retry && (t.peek==='fail'||t.peek==='limited'))) { if (!queue.includes(t.id)) { queue.push(t.id); t.peek='queued'; } }
   }
   if (retry) limitedUntil = 0;
@@ -219,7 +403,7 @@ function pump(){
       while (queue.length){ const t = state.tiles[queue.shift()]; if (t){ t.peek='limited'; refreshTile(t.id); } }
       save(); updateStats(); return;
     }
-    const id = queue.shift(); const t = state.tiles[id]; if (!t) continue;
+    const id = queue.shift(); const t = state.tiles[id]; if (!t || isNote(t)) continue;
     active++; fetchPeek(t).finally(()=>{ active--; save(); refreshTile(id); updateStats(); pump(); });
   }
 }
@@ -228,7 +412,7 @@ async function fetchPeek(t){
   try {
     const ctrl = new AbortController(); const to = setTimeout(()=>ctrl.abort(), 25000);
     const r = await fetch(MICROLINK(t.url), { signal: ctrl.signal }); clearTimeout(to);
-    if (r.status === 429){ t.peek='limited'; limitedUntil = Date.now() + 10*60*1000; toast('Microlink rate limit hit — showing placeholders. Try ↻ Peeks later.'); return; }
+    if (r.status === 429){ t.peek='limited'; limitedUntil = Date.now() + 10*60*1000; toast('Microlink rate limit hit — showing placeholders. Try ↻ Retry previews later.'); return; }
     const j = await r.json().catch(()=>null);
     const shot = j && j.status === 'success' && j.data && j.data.screenshot && j.data.screenshot.url;
     if (shot){ t.shot = shot; t.peek='ok'; }
@@ -237,62 +421,72 @@ async function fetchPeek(t){
 }
 
 // ---------- render ----------
-const board = document.getElementById('board');
+const board = $('board');
 let filter = '';
+let favOnly = false;
 let view = localStorage.getItem(KEY+'.view') === 'tree' ? 'tree' : 'mosaic';
 const openSites = new Set(); // "gid|host" keys expanded in tree view (sites with 2+ pages start collapsed)
 function render(){
   board.innerHTML = '';
   board.classList.toggle('tree', view==='tree');
   document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('on', b.dataset.view===view));
-  document.getElementById('sizeLbl').hidden = view==='tree';
-  document.getElementById('treeActs').hidden = view!=='tree';
+  $('sizeLbl').hidden = view==='tree';
+  $('treeActs').hidden = view!=='tree';
+  $('btnFav').classList.toggle('on', favOnly); $('btnFav').textContent = favOnly ? '★' : '☆';
   const total = Object.keys(state.tiles).length;
   if (!total && state.groups.length === 1){
-    board.innerHTML = '<div class="empty"><p style="font-size:18px">Your wall is empty.</p><p>Click <b>+ Import URLs</b> to paste a list or load a CSV.</p></div>';
+    board.innerHTML = '<div class="empty"><p style="font-size:18px">Your wall is empty.</p><p>Click <b>+ Add</b> to paste links or a to-do list, drop a bookmarks file or list anywhere on the page, or just paste a link.</p></div>';
   }
   for (const g of state.groups){
     if (g.id===UNGROUPED && !g.tileIds.length && state.groups.length>1 && !total) continue;
+    if (favOnly && !g.tileIds.some(id => state.tiles[id] && matches(state.tiles[id]))) continue;
     board.appendChild(groupEl(g));
   }
   updateStats(); fillGroupSelect();
+  if (pvId) renderPreview(false);
 }
 function groupEl(g){
   const el = document.createElement('section'); el.className='group'; el.dataset.gid=g.id;
   const head = document.createElement('div'); head.className='ghead';
   const name = document.createElement('div'); name.className='name'; name.textContent=g.name;
   const count = document.createElement('span'); count.className='count'; count.textContent = `${g.tileIds.length}`;
-  const tree = view==='tree', collapsed = tree && g.collapsed && !filter;
+  const tree = view==='tree', collapsed = tree && g.collapsed && !filter && !favOnly;
   if (tree){ const tw = btn(collapsed?'▸':'▾', () => { g.collapsed = !g.collapsed; save(); render(); }); tw.className='twisty'; tw.title = collapsed?'Expand':'Collapse'; head.append(tw); }
   head.append(name, count);
+  const sp = document.createElement('span'); sp.className='spacer'; head.append(sp);
+  if (g.tileIds.length){ const h = btn('Hand-off', () => copyText(handoff(visibleIds(g), g), 'Group hand-off')); h.title = 'Copy a brief for Claude covering this group'; head.append(h); }
   if (g.id !== UNGROUPED){
     name.title='Double-click to rename';
     name.ondblclick = () => startRename(name, g);
     const ren = btn('Rename', () => startRename(name, g));
     const up = btn('↑', () => moveGroup(g.id,-1)); up.title='Move group up';
     const dn = btn('↓', () => moveGroup(g.id,1)); dn.title='Move group down';
-    const openAll = btn('Open all', () => { if (g.tileIds.length>8 && !confirm(`Open ${g.tileIds.length} tabs?`)) return; g.tileIds.forEach(id=>window.open(state.tiles[id].url,'_blank','noopener')); });
-    const del = btn('Delete', () => { if (!confirm(`Delete group "${g.name}"? Its tiles move to Ungrouped.`)) return;
+    const openAll = btn('Open all', () => { const ts = g.tileIds.map(id=>state.tiles[id]).filter(t=>t && t.url); if (!ts.length){ toast('Nothing with a link in this group'); return; } if (ts.length>8 && !confirm(`Open ${ts.length} tabs?`)) return; ts.forEach(t=>window.open(t.url,'_blank','noopener')); });
+    const del = btn('Delete', () => { if (!confirm(`Delete group "${g.name}"? Its items move to Ungrouped.`)) return;
       state.groups.find(x=>x.id===UNGROUPED).tileIds.push(...g.tileIds); state.groups = state.groups.filter(x=>x!==g); save(); render(); });
     del.className='danger';
-    const sp = document.createElement('span'); sp.className='spacer';
-    head.append(sp, up, dn, ren, openAll, del);
+    head.append(up, dn, ren, openAll, del);
   }
   el.append(head);
   if (tree){ if (!collapsed) el.append(treeBody(g)); }
   else {
     const grid = document.createElement('div'); grid.className='grid';
-    for (const id of g.tileIds){ const t = state.tiles[id]; if (t && matches(t)) grid.appendChild(tileEl(t)); }
+    for (const id of visibleIds(g)) grid.appendChild(tileEl(state.tiles[id]));
     el.append(grid);
   }
-  // drop zone
+  // drop zone (tiles from other groups; files/links from outside fall through to the document handler)
   el.addEventListener('dragover', e => { if (!dragId) return; e.preventDefault(); e.dataTransfer.dropEffect='move'; el.classList.add('over'); });
   el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('over'); });
-  el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over'); if (!dragId) return;
+  el.addEventListener('drop', e => { if (!dragId) return; e.preventDefault(); el.classList.remove('over');
     const beforeTile = e.target.closest('.tile,.trow'); moveTile(dragId, g.id, beforeTile ? beforeTile.dataset.id : null); });
   return el;
 }
-function matches(t){ if (!filter) return true; return (t.url+' '+(t.title||'')).toLowerCase().includes(filter); }
+function matches(t){
+  if (favOnly && !t.fav) return false;
+  if (!filter) return true;
+  return ((t.url||'')+' '+label(t)+' '+(t.note||'')).toLowerCase().includes(filter);
+}
+const visibleIds = g => g.tileIds.filter(id => state.tiles[id] && matches(state.tiles[id]));
 function btn(label, fn){ const b=document.createElement('button'); b.textContent=label; b.onclick=e=>{e.stopPropagation(); fn();}; return b; }
 function startRename(nameEl, g){
   nameEl.contentEditable='true'; nameEl.focus(); document.getSelection().selectAllChildren(nameEl);
@@ -304,19 +498,24 @@ function moveGroup(id, dir){
   if (j < 1 || j >= state.groups.length) return; // keep Ungrouped first
   [state.groups[i], state.groups[j]] = [state.groups[j], state.groups[i]]; save(); render();
 }
+function icon(t, size){
+  if (!isNote(t)) return `<img alt="" src="${FAVICON(host(t.url))}"${size?` width="${size}" height="${size}"`:''}>`;
+  return `<span class="ic">${t.url ? '🔗' : '📝'}</span>`;
+}
 // ---------- tree view ----------
-// Group → site → page. A site with one page shows as a plain row; 2+ pages fold under a site node.
+// Group → site → page. A site with one page shows as a plain row; 2+ pages fold under a site node. Notes are always plain rows.
 function treeBody(g){
   const wrap = document.createElement('div'); wrap.className='trows';
-  const ids = g.tileIds.filter(id => state.tiles[id] && matches(state.tiles[id]));
+  const ids = visibleIds(g);
+  const siteKey = id => isNote(state.tiles[id]) ? '\u0000'+id : host(state.tiles[id].url);
   const bySite = new Map();
-  for (const id of ids){ const h = host(state.tiles[id].url); if (!bySite.has(h)) bySite.set(h, []); bySite.get(h).push(id); }
+  for (const id of ids){ const h = siteKey(id); if (!bySite.has(h)) bySite.set(h, []); bySite.get(h).push(id); }
   const done = new Set();
   for (const id of ids){
-    const h = host(state.tiles[id].url); if (done.has(h)) continue; done.add(h);
+    const h = siteKey(id); if (done.has(h)) continue; done.add(h);
     const pages = bySite.get(h);
     if (pages.length === 1){ wrap.appendChild(treeRow(state.tiles[id], false)); continue; }
-    const key = g.id+'|'+h, open = openSites.has(key) || !!filter;
+    const key = g.id+'|'+h, open = openSites.has(key) || !!filter || favOnly;
     const site = document.createElement('div'); site.className='site';
     site.innerHTML = `<span class="twisty">${open?'▾':'▸'}</span><img alt="" src="${FAVICON(h)}"><b>${esc(h)}</b> ${pages.length} pages`;
     site.onclick = () => { openSites.has(key) ? openSites.delete(key) : openSites.add(key); render(); };
@@ -326,50 +525,57 @@ function treeBody(g){
   return wrap;
 }
 function treeRow(t, nested){
-  const el = document.createElement('div'); el.className = 'trow' + (nested?' nested':''); el.draggable=true; el.dataset.id=t.id; el.title=t.url;
-  let path = ''; try { const u = new URL(t.url); path = (u.pathname + u.search).replace(/^\/$/,''); } catch(e){}
-  const label = t.title||defaultTitle(t.url), where = host(t.url)+path;
-  el.innerHTML = `<img alt="" src="${FAVICON(host(t.url))}"><span class="t">${esc(label)}</span><span class="d">${label===where?'':esc(where)}</span><span class="acts"></span>`;
+  const el = document.createElement('div'); el.className = 'trow' + (nested?' nested':'') + (t.done?' done':''); el.draggable=true; el.dataset.id=t.id; el.title=t.url||label(t);
+  let where = '';
+  if (isNote(t)) where = t.url || (t.note||'').split('\n')[0];
+  else { let path = ''; try { const u = new URL(t.url); path = (u.pathname + u.search).replace(/^\/$/,''); } catch(e){} where = host(t.url)+path; }
+  const lab = label(t);
+  el.innerHTML = `${icon(t)}<span class="t">${esc(lab)}</span>${t.fav?'<span class="s">★</span>':''}<span class="d">${lab===where?'':esc(where)}</span><span class="acts"></span>`;
   el.querySelector('.acts').append(
-    btn('✎', () => { const v = prompt('Title', t.title||defaultTitle(t.url)); if (v!==null){ t.title=v.trim(); save(); render(); } }),
+    btn(t.fav?'★':'☆', () => { t.fav = !t.fav; save(); render(); }),
     btn('✕', () => removeTile(t.id))
   );
   wireDrag(el, t);
   return el;
 }
 function wireDrag(el, t){
-  el.addEventListener('click', e => { if (e.target.closest('.acts')) return; if (Date.now() - lastDragEnd < 300) return; openTile(t.id); });
-  el.addEventListener('dragstart', e => { dragId=t.id; el.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', t.url); });
+  el.addEventListener('click', e => { if (e.target.closest('.acts')) return; if (Date.now() - lastDragEnd < 300) return; openPreview(t.id); });
+  el.addEventListener('dragstart', e => { dragId=t.id; el.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', t.url||label(t)); });
   el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragId=null; lastDragEnd=Date.now(); document.querySelectorAll('.over,.insert').forEach(x=>x.classList.remove('over','insert')); });
   el.addEventListener('dragover', () => { if (dragId && dragId!==t.id){ document.querySelectorAll('.insert').forEach(x=>x.classList.remove('insert')); el.classList.add('insert'); } });
   el.addEventListener('dragleave', () => el.classList.remove('insert'));
 }
+function noteCard(t){
+  const sub = t.note || t.url || '';
+  return `<div class="note" style="--h:${hue(label(t))}"><div class="nk">${t.url ? '🔗 '+esc(t.url.split(':')[0]) : '📝 note'}${t.done?' · done':''}</div><div class="nt">${esc(label(t))}</div>${sub?`<div class="nb">${esc(sub)}</div>`:''}</div>`;
+}
 function peekInner(t){
-  if (t.peek==='ok' && t.shot) return `<img class="shot" loading="lazy" alt="" src="${esc(t.shot)}" onerror="this.dataset.err=1;window.__mpShotErr&&window.__mpShotErr('${t.id}')">`;
+  if (isNote(t)) return noteCard(t);
+  if (t.peek==='ok' && t.shot) return `<img class="shot" loading="lazy" alt="" src="${esc(t.shot)}" onerror="window.__mpShotErr&&window.__mpShotErr('${t.id}')">`;
   const st = {none:'', queued:'queued…', pending:'capturing…', fail:'no preview', limited:'preview rate-limited'}[t.peek] || '';
   return `<div class="ph" style="--h:${hue(host(t.url))}"><img alt="" src="${FAVICON(host(t.url))}"><div class="dom">${esc(host(t.url))}</div><div class="st">${st}</div></div>`;
 }
 function tileEl(t){
-  const el = document.createElement('div'); el.className='tile'; el.draggable=true; el.dataset.id=t.id; el.title=t.url;
-  el.innerHTML = `<div class="peek">${peekInner(t)}</div>
-    <div class="meta"><img alt="" src="${FAVICON(host(t.url))}"><div style="min-width:0;flex:1"><div class="t">${esc(t.title||defaultTitle(t.url))}</div><div class="d">${esc(host(t.url))}</div></div></div>
+  const el = document.createElement('div'); el.className='tile' + (t.done?' done':''); el.draggable=true; el.dataset.id=t.id; el.title=t.url||label(t);
+  const sub = isNote(t) ? (t.url ? linkName(t.url) : 'note') : host(t.url);
+  el.innerHTML = `<div class="peek">${peekInner(t)}<div class="badge">${t.fav?'<span class="s">★</span>':''}${t.done?'<span class="k">✓</span>':''}</div></div>
+    <div class="meta">${icon(t)}<div style="min-width:0;flex:1"><div class="t">${esc(label(t))}</div><div class="d">${esc(sub)}</div></div></div>
     <div class="acts"></div>`;
   const acts = el.querySelector('.acts');
-  acts.append(
-    btn('↗', () => openTile(t.id)),
-    btn('✎', () => { const v = prompt('Tile title', t.title||defaultTitle(t.url)); if (v!==null){ t.title=v.trim(); save(); refreshTile(t.id);} }),
-    btn('↻', () => { t.peek='none'; t.shot=''; queuePeeks(); }),
-    btn('✕', () => { removeTile(t.id); })
-  );
-  acts.children[0].title='Open in new tab'; acts.children[1].title='Rename'; acts.children[2].title='Re-capture peek'; acts.children[3].title='Remove';
+  const fav = btn(t.fav?'★':'☆', () => { t.fav = !t.fav; save(); render(); }); fav.title = t.fav ? 'Unfavourite' : 'Favourite';
+  acts.append(fav);
+  if (t.url){ const o = btn('↗', () => openTile(t.id)); o.title='Open in new tab'; acts.append(o); }
+  if (!isNote(t)){ const r = btn('↻', () => { t.peek='none'; t.shot=''; queuePeeks(); }); r.title='Re-capture preview'; acts.append(r); }
+  const x = btn('✕', () => removeTile(t.id)); x.title='Remove'; acts.append(x);
   wireDrag(el, t);
   return el;
 }
-window.__mpShotErr = id => { const t = state.tiles[id]; if (t){ t.peek='fail'; t.shot=''; save(); refreshTile(id); } };
+window.__mpShotErr = id => { const t = state.tiles[id]; if (t && t.peek==='ok'){ t.peek='fail'; t.shot=''; save(); refreshTile(id); } };
 function refreshTile(id){
-  const t = state.tiles[id]; const el = board.querySelector(`.tile[data-id="${id}"]`);
-  if (!t || !el) return; el.querySelector('.peek').innerHTML = peekInner(t);
-  el.querySelector('.t').textContent = t.title || defaultTitle(t.url);
+  const t = state.tiles[id]; if (!t) return;
+  const el = board.querySelector(`.tile[data-id="${id}"]`);
+  if (el && !el.classList.contains('dragging')) el.replaceWith(tileEl(t));
+  if (pvId === id) $('pvBig').innerHTML = peekInner(t);
 }
 let dragId = null, lastDragEnd = 0;
 function moveTile(id, gid, beforeId){
@@ -381,52 +587,177 @@ function moveTile(id, gid, beforeId){
   save(); render();
 }
 function removeTile(id){ delete state.tiles[id]; for (const g of state.groups) g.tileIds = g.tileIds.filter(x=>x!==id); save(); render(); }
-function openTile(id){ const t = state.tiles[id]; if (t) window.open(t.url, '_blank', 'noopener'); }
+function openTile(id){ const t = state.tiles[id]; if (t && t.url) window.open(t.url, '_blank', 'noopener'); }
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function updateStats(){
   const ts = Object.values(state.tiles);
   const ok = ts.filter(t=>t.peek==='ok').length, busy = ts.filter(t=>t.peek==='queued'||t.peek==='pending').length;
-  document.getElementById('stats').textContent = `${ts.length} tiles · ${state.groups.length-1} groups · ${ok} peeks` + (busy?` · ${busy} loading`:'');
+  $('stats').textContent = `${ts.length} items · ${state.groups.length-1} groups · ${ok} previews` + (busy?` · ${busy} loading`:'');
 }
 function fillGroupSelect(){
-  const sel = document.getElementById('selGroup'); const v = sel.value;
+  const sel = $('selGroup'); const v = sel.value;
   sel.innerHTML = state.groups.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
   if (state.groups.find(g=>g.id===v)) sel.value = v;
 }
-let toastT; function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'), 2800); }
+let toastT; function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'), 2800); }
+
+// ---------- hand-off ----------
+// A paste-ready brief for Claude (or any agent): what the item is, where it lives, and the user's own notes.
+function handoff(ids, g){
+  const ts = ids.map(id => state.tiles[id]).filter(Boolean);
+  const inGroup = g && g.id !== UNGROUPED ? g.name : '';
+  const out = [ts.length === 1
+    ? 'I saved this on my Mosaic Peek board and want to build from it.'
+    : `Here are ${ts.length} things I've collected${inGroup ? ` under "${inGroup}"` : ''} on my Mosaic Peek board.`, ''];
+  for (const t of ts){
+    out.push(`## ${label(t)}${t.done ? ' (done)' : ''}`);
+    if (t.url) out.push(`- Link: ${t.url}`);
+    if (ts.length === 1 && inGroup) out.push(`- Group: ${inGroup}`);
+    if (t.note) out.push(`- My notes:\n  ${t.note.trim().split('\n').join('\n  ')}`);
+    out.push('');
+  }
+  out.push(ts.length === 1
+    ? (ts[0].note ? 'Use my notes as the brief. Ask me anything you need before you start building.' : 'Ask me what I want to change or make from this before you start building.')
+    : 'Help me pick what to work on next and turn it into something I can finish. Ask me what I want before you start building.');
+  return out.join('\n');
+}
+async function copyText(s, what){
+  try { await navigator.clipboard.writeText(s); }
+  catch(e){
+    const ta = document.createElement('textarea'); ta.value = s; ta.style.cssText = 'position:fixed;opacity:0;top:0';
+    document.body.append(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch(_){} ta.remove();
+    if (!ok){ toast('Copy failed: your browser blocked clipboard access'); return; }
+  }
+  toast(`${what} copied. Paste it into Claude.`);
+}
+
+// ---------- full-screen preview ----------
+const pv = $('pv');
+let pvId = null;
+const groupOf = id => state.groups.find(g => g.tileIds.includes(id));
+function pvSiblings(){ const g = groupOf(pvId); if (!g) return []; const ids = visibleIds(g); return ids.includes(pvId) ? ids : g.tileIds.filter(id => state.tiles[id]); }
+function openPreview(id){ pvId = id; pv.classList.add('open'); document.body.style.overflow = 'hidden'; renderPreview(true); }
+function closePreview(rerender = true){ if (!pvId) return; pvId = null; pv.classList.remove('open'); document.body.style.overflow = ''; if (rerender) render(); }
+function renderPreview(fields){
+  const t = state.tiles[pvId]; if (!t){ closePreview(); return; }
+  const g = groupOf(t.id), sib = pvSiblings(), i = sib.indexOf(t.id);
+  $('pvBig').innerHTML = peekInner(t);
+  $('pvPos').textContent = sib.length > 1 ? `${i+1} / ${sib.length}` : '';
+  $('pvFav').textContent = t.fav ? '★ Favourite' : '☆ Favourite'; $('pvFav').classList.toggle('on', !!t.fav);
+  $('pvDone').textContent = t.done ? '✓ Done' : '○ Not done'; $('pvDone').classList.toggle('on', !!t.done);
+  $('pvOpen').hidden = !t.url;
+  if (fields){
+    $('pvTitle').value = t.title || ''; $('pvTitle').placeholder = label(t);
+    $('pvUrl').value = t.url || '';
+    $('pvNote').value = t.note || '';
+  }
+  $('pvGroup').textContent = g ? `${g.name} · ${g.tileIds.length}` : '';
+  const list = $('pvList'); list.innerHTML = '';
+  for (const id of sib){
+    const s = state.tiles[id], row = document.createElement('div');
+    row.className = 'side' + (id === t.id ? ' on' : '');
+    row.innerHTML = `${icon(s)}<span>${esc(label(s))}</span>`;
+    row.onclick = () => openPreview(id);
+    list.append(row);
+  }
+  const on = list.querySelector('.on'); if (on && fields) on.scrollIntoView({ block:'nearest' });
+}
+function stepPreview(d){ const sib = pvSiblings(); if (sib.length < 2) return; const i = sib.indexOf(pvId); openPreview(sib[(i + d + sib.length) % sib.length]); }
+function setUrl(t, v){
+  v = v.trim();
+  const url = normalize(v);
+  if (url){ if (t.kind !== 'link' || t.url !== url){ t.kind = 'link'; t.url = url; t.shot = ''; t.peek = 'none'; queuePeeks(); } }
+  else if (!v || (OTHER_LINK.test(v) && !JUNK_LINK.test(v))){ t.kind = 'note'; t.url = v; t.shot = ''; t.peek = 'na'; }
+  else { toast("That doesn't look like a link"); $('pvUrl').value = t.url || ''; return; }
+  save(); refreshTile(t.id); renderPreview(false);
+}
+$('pvClose').onclick = () => closePreview();
+$('pvPrev').onclick = () => stepPreview(-1);
+$('pvNext').onclick = () => stepPreview(1);
+$('pvFav').onclick = () => { const t = state.tiles[pvId]; t.fav = !t.fav; save(); refreshTile(t.id); renderPreview(false); };
+$('pvDone').onclick = () => { const t = state.tiles[pvId]; t.done = !t.done; save(); refreshTile(t.id); renderPreview(false); };
+$('pvOpen').onclick = () => openTile(pvId);
+$('pvDel').onclick = () => { const sib = pvSiblings(), i = sib.indexOf(pvId), next = sib[i+1] || sib[i-1]; removeTile(pvId); next ? openPreview(next) : closePreview(); };
+$('pvHand').onclick = () => copyText(handoff([pvId], groupOf(pvId)), 'Hand-off');
+$('pvTitle').oninput = e => { const t = state.tiles[pvId]; t.title = e.target.value.trim(); save(); refreshTile(t.id); renderPreview(false); };
+$('pvNote').oninput = e => { const t = state.tiles[pvId]; t.note = e.target.value; save(); if (isNote(t)) refreshTile(t.id); };
+$('pvUrl').onchange = e => setUrl(state.tiles[pvId], e.target.value);
+document.addEventListener('keydown', e => {
+  if (!pvId) return;
+  const typing = e.target.closest('input,textarea');
+  if (e.key === 'Escape'){ if (typing) e.target.blur(); closePreview(); }
+  else if (!typing && e.key === 'ArrowLeft') stepPreview(-1);
+  else if (!typing && e.key === 'ArrowRight') stepPreview(1);
+});
+
+// ---------- theme ----------
+const THEMES = { auto:'◐ Auto', light:'☀ Light', dark:'☾ Dark' };
+let theme = localStorage.getItem(KEY+'.theme'); if (!THEMES[theme]) theme = 'auto';
+function applyTheme(){
+  if (theme === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = theme;
+  $('btnTheme').textContent = THEMES[theme];
+}
+$('btnTheme').onclick = () => { const k = Object.keys(THEMES); theme = k[(k.indexOf(theme)+1) % k.length]; localStorage.setItem(KEY+'.theme', theme); applyTheme(); };
+applyTheme();
 
 // ---------- toolbar ----------
-const dlg = document.getElementById('dlgImport'), ta = document.getElementById('taImport');
-document.getElementById('btnImport').onclick = () => { fillGroupSelect(); dlg.showModal(); ta.focus(); };
-document.getElementById('btnCancel').onclick = () => dlg.close();
-document.getElementById('btnDoImport').onclick = () => { const items = parseInput(ta.value); if (!items.length){ toast('Nothing to import'); return; } addUrls(items, document.getElementById('selGroup').value); ta.value=''; dlg.close(); };
-document.getElementById('btnSample').onclick = () => { ta.value = ['https://github.com','https://news.ycombinator.com','https://developer.mozilla.org/en-US/','https://www.wikipedia.org','https://stackoverflow.com','https://www.youtube.com','https://www.reddit.com','https://www.nytimes.com','https://www.figma.com','https://vercel.com','https://www.notion.so','https://excalidraw.com'].join('\n'); };
-document.getElementById('btnCsv').onclick = () => document.getElementById('fileCsv').click();
-document.getElementById('fileCsv').onchange = async e => { const f = e.target.files[0]; if (f) ta.value = await f.text(); e.target.value=''; };
-document.getElementById('btnNewGroup').onclick = () => { const n = prompt('Group name', 'New group'); if (!n || !n.trim()) return; state.groups.push({id:uid(), name:n.trim(), tileIds:[]}); save(); render(); };
-document.getElementById('search').oninput = e => { filter = e.target.value.trim().toLowerCase(); render(); };
-const size = document.getElementById('size');
+const dlg = $('dlgImport'), ta = $('taImport');
+$('btnImport').onclick = () => { fillGroupSelect(); dlg.showModal(); ta.focus(); };
+$('btnCancel').onclick = () => dlg.close();
+$('btnDoImport').onclick = () => { const items = parseInput(ta.value); if (!items.length){ toast('Nothing to add'); return; } addItems(items, $('selGroup').value); ta.value=''; dlg.close(); };
+$('btnSample').onclick = () => { ta.value = [
+  'https://github.com','https://news.ycombinator.com','https://developer.mozilla.org/en-US/','https://www.wikipedia.org',
+  'https://www.figma.com','https://excalidraw.com','https://www.shadertoy.com','https://codepen.io',
+  '- [ ] Finish the portfolio site redesign','- [ ] Learn the Web Audio API','- [x] Set up GitHub Pages',
+  '[Generative art ideas](https://openprocessing.org) - remix one into a loading screen'
+].join('\n'); };
+$('btnFile').onclick = () => $('fileAny').click();
+$('fileAny').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
+  // Plain lists go into the box so they can be checked first; bookmark and JSON files import straight away.
+  if (files.length === 1 && /\.(csv|txt|md|markdown)$/i.test(files[0].name)){ ta.value = await files[0].text(); return; }
+  const gid = $('selGroup').value; dlg.close();
+  for (const f of files) await importFile(f, gid);
+};
+$('btnNewGroup').onclick = () => { const n = prompt('Group name', 'New group'); if (!n || !n.trim()) return; state.groups.push({id:uid(), name:n.trim(), tileIds:[]}); save(); render(); };
+$('search').oninput = e => { filter = e.target.value.trim().toLowerCase(); render(); };
+$('btnFav').onclick = () => { favOnly = !favOnly; render(); };
+const size = $('size');
 size.oninput = () => { document.documentElement.style.setProperty('--tile', size.value+'px'); localStorage.setItem(KEY+'.size', size.value); };
 size.value = localStorage.getItem(KEY+'.size') || 220; size.oninput();
-document.getElementById('btnPeeks').onclick = () => queuePeeks(true);
-document.getElementById('viewSeg').onclick = e => { const v = e.target.dataset.view; if (!v || v===view) return; view = v; localStorage.setItem(KEY+'.view', v); render(); };
-document.getElementById('btnExpand').onclick = () => { state.groups.forEach(g=>g.collapsed=false); for (const t of Object.values(state.tiles)){ const g = state.groups.find(x=>x.tileIds.includes(t.id)); if (g) openSites.add(g.id+'|'+host(t.url)); } save(); render(); };
-document.getElementById('btnCollapse').onclick = () => { state.groups.forEach(g=>g.collapsed=true); openSites.clear(); save(); render(); };
-document.getElementById('btnExport').onclick = () => {
+$('btnPeeks').onclick = () => queuePeeks(true);
+$('viewSeg').onclick = e => { const v = e.target.dataset.view; if (!v || v===view) return; view = v; localStorage.setItem(KEY+'.view', v); render(); };
+$('btnExpand').onclick = () => { state.groups.forEach(g=>g.collapsed=false); for (const t of Object.values(state.tiles)){ const g = groupOf(t.id); if (g && !isNote(t)) openSites.add(g.id+'|'+host(t.url)); } save(); render(); };
+$('btnCollapse').onclick = () => { state.groups.forEach(g=>g.collapsed=true); openSites.clear(); save(); render(); };
+$('btnExport').onclick = () => {
   const blob = new Blob([JSON.stringify({...state, exportedAt:new Date().toISOString()}, null, 2)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mosaic-peek-${new Date().toISOString().slice(0,10)}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 };
-document.getElementById('btnImportJson').onclick = () => document.getElementById('fileJson').click();
-document.getElementById('fileJson').onchange = async e => {
+$('btnImportJson').onclick = () => $('fileJson').click();
+$('fileJson').onchange = async e => {
   const f = e.target.files[0]; e.target.value=''; if (!f) return;
-  try { const s = JSON.parse(await f.text()); if (!s.groups || !s.tiles) throw new Error('missing groups/tiles');
-    if (Object.keys(state.tiles).length && !confirm('Replace the current board with this file?')) return;
-    state = sanitize({version:1, groups:s.groups, tiles:s.tiles}); save(); render(); queuePeeks(); toast('Board imported');
-  } catch(err){ toast('Import failed: '+err.message); }
+  try { restoreBoard(JSON.parse(await f.text())); } catch(err){ toast('Import failed: '+err.message); }
 };
-document.getElementById('btnClear').onclick = () => { if (!confirm('Clear the whole board? (Export first if you want a backup.)')) return; state = blank(); queue.length=0; save(); render(); };
+$('btnClear').onclick = () => { if (!confirm('Clear the whole board? (Export first if you want a backup.)')) return; closePreview(false); state = blank(); queue.length=0; save(); render(); };
+const menu = $('menu');
+menu.querySelector('.pop').addEventListener('click', () => { menu.open = false; });
+document.addEventListener('click', e => { if (menu.open && !menu.contains(e.target)) menu.open = false; });
 // paste URLs anywhere on the page (outside inputs)
-document.addEventListener('paste', e => { if (e.target.closest('input,textarea,[contenteditable=true]')) return; const txt = e.clipboardData.getData('text'); if (txt && /https?:\/\/|\w\.\w/.test(txt)){ e.preventDefault(); addUrls(parseInput(txt), UNGROUPED); } });
+document.addEventListener('paste', e => { if (pvId || dlg.open || e.target.closest('input,textarea,[contenteditable=true]')) return; const txt = e.clipboardData.getData('text'); if (txt && /https?:\/\/|\w\.\w/.test(txt)){ e.preventDefault(); addItems(parseInput(txt), UNGROUPED); } });
+// drop files (bookmarks, lists, JSON) or links from other tabs anywhere; dropping on a group adds to that group
+const external = e => !dragId && [...e.dataTransfer.types].some(t => t==='Files' || t==='text/uri-list' || t==='text/plain');
+document.addEventListener('dragover', e => { if (!external(e)) return; e.preventDefault(); document.body.classList.add('dropping'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('dropping'); });
+document.addEventListener('drop', async e => {
+  document.body.classList.remove('dropping');
+  if (!external(e)) return; e.preventDefault();
+  const ge = e.target.closest && e.target.closest('.group'), gid = ge ? ge.dataset.gid : UNGROUPED;
+  const files = [...e.dataTransfer.files];
+  if (files.length){ for (const f of files) await importFile(f, gid); return; }
+  const uris = e.dataTransfer.getData('text/uri-list');
+  const txt = uris ? uris.split(/\r?\n/).filter(l => l && !l.startsWith('#')).join('\n') : e.dataTransfer.getData('text/plain');
+  if (txt.trim()) addItems(parseInput(txt), gid);
+});
 window.addEventListener('storage', e => { if (e.key===KEY){ state = load(); render(); } });
 
 render(); queuePeeks();
