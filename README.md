@@ -8,7 +8,7 @@ Turn a list of URLs into a visual wall of peek tiles, drag them into named group
 - Double-click `index.html` (works from `file://`), or
 - From the repo root: `python3 -m http.server 8080` then open http://localhost:8080
 
-No build step, no dependencies, no frameworks — one self-contained `index.html`.
+No build step, no dependencies, no frameworks: one self-contained `index.html`.
 
 ## Use
 A mosaic of mini windows for everything you've saved or started: links, unfinished projects, to-dos, files, songs. Find something, write what you want, copy the hand-off and keep building in Claude.

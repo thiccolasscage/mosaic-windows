@@ -314,7 +314,7 @@ function cleanLine(l){
   const cb = l.match(/^\[( |x|X)\]\s*/); if (cb){ done = cb[1] !== ' '; l = l.slice(cb[0].length); }
   const md = l.match(/^\[([^\]]+)\]\((\S+?)\)\s*(.*)$/);
   if (md) return { title: md[1].trim(), url: md[2], note: md[3].replace(/^[-–—:|]\s*/,'').trim(), done };
-  const m = l.match(/\b(?:https?|file):\/\/\S+/i);
+  const m = l.match(/\b(?:https?|file):\/\/[^\s,]+/i);
   if (m){ const rest = (l.slice(0,m.index) + ' ' + l.slice(m.index+m[0].length)).replace(/^[\s\-–—:|,]+|[\s\-–—:|,]+$/g,'').trim(); return { url:m[0], title:rest, done }; }
   return { url:l, done };
 }
@@ -323,12 +323,13 @@ function parseInput(text){
   if (!lines.length) return [];
   const head = parseCSVLine(lines[0]).map(h=>h.trim().toLowerCase());
   const ui = head.findIndex(h => ['url','link','href','address','uri'].includes(h));
-  const csv = lines.some(l=>/[,\t]/.test(l)) && (ui >= 0 || (lines.length > 1 && lines.slice(1).every(l => normalize(parseCSVLine(l)[0]))));
+  // CSV only with a recognised url column, or when every line (the first too) starts with a link; anything else is a plain list, so no line is ever dropped as a guessed header.
+  const csv = lines.some(l=>/[,\t]/.test(l)) && (ui >= 0 || (lines.length > 1 && lines.every(l => normalize(parseCSVLine(l)[0]))));
   if (!csv) return lines.map(cleanLine);
   const col = ui >= 0 ? ui : 0;
   const find = names => ui >= 0 ? head.findIndex(h => names.includes(h)) : -1;
-  const ti = find(['title','name']), ni = find(['note','notes','description','desc']), gi = find(['group','folder','category','list','tag']);
-  const rows = (ui >= 0 || !normalize(parseCSVLine(lines[0])[0])) ? lines.slice(1) : lines;
+  const ti = ui >= 0 ? find(['title','name']) : 1, ni = ui >= 0 ? find(['note','notes','description','desc']) : 2, gi = find(['group','folder','category','list','tag']);
+  const rows = ui >= 0 ? lines.slice(1) : lines;
   return rows.map(l => { const c = parseCSVLine(l); const v = k => k>=0 ? (c[k]||'').trim() : ''; return { url:c[col], title:v(ti), note:v(ni), group:v(gi) }; });
 }
 const ROOTS = /^(bookmarks( bar| toolbar| menu)?|other bookmarks|mobile bookmarks|favou?rites( bar)?|menu|toolbar|unfiled|mobile|root)$/i;
@@ -443,7 +444,7 @@ async function fetchPeek(t){
   try {
     const ctrl = new AbortController(); const to = setTimeout(()=>ctrl.abort(), 25000);
     const r = await fetch(MICROLINK(t.url), { signal: ctrl.signal }); clearTimeout(to);
-    if (r.status === 429){ t.peek='limited'; limitedUntil = Date.now() + 10*60*1000; toast('Microlink rate limit hit — showing placeholders. Try ↻ Retry previews later.'); return; }
+    if (r.status === 429){ t.peek='limited'; limitedUntil = Date.now() + 10*60*1000; toast('Microlink rate limit hit, showing placeholders. Try ↻ Retry previews later.'); return; }
     const j = await r.json().catch(()=>null);
     const shot = j && j.status === 'success' && j.data && j.data.screenshot && j.data.screenshot.url;
     if (shot){ t.shot = shot; t.peek='ok'; }
