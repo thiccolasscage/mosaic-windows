@@ -315,7 +315,7 @@ function cleanLine(l){
   const md = l.match(/^\[([^\]]+)\]\((\S+?)\)\s*(.*)$/);
   if (md) return { title: md[1].trim(), url: md[2], note: md[3].replace(/^[-–—:|]\s*/,'').trim(), done };
   const m = l.match(/\b(?:https?|file):\/\/\S+/i);
-  if (m){ const rest = (l.slice(0,m.index) + ' ' + l.slice(m.index+m[0].length)).replace(/^[\s\-–—:|]+|[\s\-–—:|]+$/g,'').trim(); return { url:m[0], title:rest, done }; }
+  if (m){ const rest = (l.slice(0,m.index) + ' ' + l.slice(m.index+m[0].length)).replace(/^[\s\-–—:|,]+|[\s\-–—:|,]+$/g,'').trim(); return { url:m[0], title:rest, done }; }
   return { url:l, done };
 }
 function parseInput(text){
@@ -323,7 +323,7 @@ function parseInput(text){
   if (!lines.length) return [];
   const head = parseCSVLine(lines[0]).map(h=>h.trim().toLowerCase());
   const ui = head.findIndex(h => ['url','link','href','address','uri'].includes(h));
-  const csv = lines.some(l=>/[,\t]/.test(l)) && (ui >= 0 || lines.slice(1).every(l => normalize(parseCSVLine(l)[0])));
+  const csv = lines.some(l=>/[,\t]/.test(l)) && (ui >= 0 || (lines.length > 1 && lines.slice(1).every(l => normalize(parseCSVLine(l)[0]))));
   if (!csv) return lines.map(cleanLine);
   const col = ui >= 0 ? ui : 0;
   const find = names => ui >= 0 ? head.findIndex(h => names.includes(h)) : -1;

@@ -1,5 +1,7 @@
 # Mosaic Peek
 
+Guides: [how to use it, personal and commercial](docs/GUIDE.md) · [6-month launch plan](docs/LAUNCH_PLAN.md)
+
 Turn a list of URLs into a visual wall of peek tiles, drag them into named groups, click to reopen the real site.
 
 ## Open it
@@ -38,7 +40,7 @@ A mosaic of mini windows for everything you've saved or started: links, unfinish
 - Favicon: `https://www.google.com/s2/favicons?domain=…&sz=64`.
 - Screenshot: `https://api.microlink.io/?url=…&screenshot=true&meta=false`, 2 requests at a time, result URL cached in the board so reloads don't re-fetch.
 - On failure → styled placeholder (domain + favicon, color from domain). On HTTP 429 / rate-limit → remaining queue switches to "preview rate-limited" placeholders for 10 min; **↻ Peeks** retries failed/limited ones.
-- Caveats: Microlink's free, keyless tier is small (roughly ~50 requests/day per IP), each capture takes a few seconds, sites with bot walls/logins may return blank or consent screens, and cached screenshot URLs are hosted by Microlink and may expire (a broken image falls back to the placeholder; ↻ re-captures).
+- Caveats: Microlink's free, keyless tier is very small (its docs say about 5 requests/day per IP; 25/day with a free key), each capture takes a few seconds, sites with bot walls/logins may return blank or consent screens, and cached screenshot URLs are hosted by Microlink and may expire (a broken image falls back to the placeholder; ↻ re-captures).
 
 ## Scope
 In: paste/CSV/Markdown/bookmark/JSON import, link + note tiles, mosaic grid, tree view, forever wall, full-screen preview, notes, favourites, done, Claude hand-off, light/dark, groups (create/rename/delete/reorder), drag-and-drop (tiles and files), localStorage, JSON export/import.
