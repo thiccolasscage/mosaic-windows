@@ -23,7 +23,7 @@ Mosaic Peek is a wall of mini windows. Each tile is something you saved or start
 
 ### 1.3 First 20 minutes (set up once)
 
-1. Bookmark the page. (On a phone, "Add to Home Screen" also works, but on iPhone the home-screen copy may keep a separate board from Safari. Pick one and stick to it.)
+1. Install it as an app: on a PC, ⋯ menu, then ⊕ Install app (Edge or Chrome); on iPhone, Safari's Share button, then "Add to Home Screen". On iPhone the home-screen app keeps its own boards, separate from Safari, so export from Safari first and restore inside the app. Or just bookmark the page.
 2. Make 4 groups with **+ Group**: `Inbox`, `Now`, `Next`, `Someday`. New items land in Ungrouped; treat that as your inbox.
 3. Import your browser bookmarks (5 minutes). Menu names vary a little by browser version:
    - Chrome or Edge: press Ctrl+Shift+O (Cmd+Shift+O on Mac), click the ⋮ menu, then "Export bookmarks".
@@ -82,10 +82,12 @@ Paste it into Claude, Claude Code or another assistant. The hand-off already ask
 
 ### 1.7 Backups (5 minutes a week)
 
-1. ⋯ menu, then Export board (JSON). A file like `mosaic-peek-2026-11-08.json` downloads. (The date in the name is in UTC, so late in the evening it can show tomorrow.)
+1. ⋯ menu, then Export board (JSON). A file like `mosaic-peek-my-board-2026-11-08.json` downloads, named after the board. (The date in the name is in UTC, so late in the evening it can show tomorrow.)
 2. Put it in a cloud folder (Google Drive, iCloud, OneDrive).
 3. Imported the wrong thing? ⋯ menu, then ↶ Undo last import removes everything that add or import brought in, after showing you how many.
-4. To restore: ⋯ menu, then Restore board (JSON). This replaces the current board; it does not merge. Export first if the current one matters.
+4. To restore: ⋯ menu, then Restore board (JSON). This replaces the current board; it does not merge. To keep both, first pick "+ New empty board" from the board list (next to the title), then restore.
+
+The board list also starts a fresh, empty board, renames the current one, or deletes it. Each board is saved and exported separately.
 
 To move a board between devices, export on one and restore on the other. Until Phase 0 is done, **only restore files you exported yourself**: a board file from someone else could contain harmful code.
 

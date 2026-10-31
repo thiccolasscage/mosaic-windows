@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mosaic Peek</title>
+<meta name="theme-color" content="#0f1115">
+<meta name="description" content="A mosaic of mini windows for links, unfinished projects, to-dos, files and songs.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mosaic Peek">
 <style>
 :root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--line:#2a2f3a;--fg:#e6e8ee;--mute:#8b93a4;--acc:#6aa9ff;--onacc:#071223;--warn:#ff7a7a;--ok:#57d38c;--star:#ffcf5a;--hdr:rgba(15,17,21,.92);--well:#0b0d11;--over:#1a2232;--phL:18%;--phD:10%;--shadow:0 18px 50px rgba(0,0,0,.5);color-scheme:dark}
 :root[data-theme=light]{--bg:#f4f5f8;--panel:#fff;--panel2:#eef0f4;--line:#d8dce4;--fg:#1a1d24;--mute:#5d6676;--acc:#2f6fdb;--onacc:#fff;--warn:#cc3333;--ok:#16884a;--star:#d99a00;--hdr:rgba(255,255,255,.92);--well:#e8ebf0;--over:#e4eeff;--phL:93%;--phD:85%;--shadow:0 18px 50px rgba(20,30,50,.18);color-scheme:light}
@@ -13,6 +20,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,-appl
 header{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--hdr);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
 header h1{font-size:16px;margin:0 12px 0 0;letter-spacing:.3px}
 header h1 span{color:var(--acc)}
+#selBoard{max-width:180px;font-weight:600}
 button,.btn,.menu summary{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit}
 button:hover,.btn:hover,.menu summary:hover{border-color:var(--acc)}
 button.primary{background:var(--acc);color:var(--onacc);border-color:var(--acc);font-weight:600}
@@ -165,6 +173,7 @@ body.walling #stats{display:none}
 <body>
 <header>
   <h1>Mosaic <span>Peek</span></h1>
+  <select id="selBoard" title="Switch board, or start a fresh empty one" aria-label="Board"></select>
   <button class="primary" id="btnImport" title="Add links, lists, notes or files">+ Add</button>
   <span class="seg" id="viewSeg"><button data-view="mosaic" title="Mosaic view">▦ Mosaic</button><button data-view="tree" title="Tree view">☰ Tree</button><button data-view="wall" title="Forever wall: drag or scroll to roam">✦ Wall</button></span>
   <button id="btnNewGroup">+ Group</button>
@@ -182,6 +191,7 @@ body.walling #stats{display:none}
     <button id="btnExport">⤓ Export board (JSON)</button>
     <button id="btnImportJson">⤒ Restore board (JSON)</button>
     <button class="danger" id="btnClear">Clear board</button>
+    <button id="btnInstall" hidden title="Use Mosaic Peek as an app on this device">⊕ Install app</button>
   </div></details>
   <input type="file" id="fileJson" accept=".json,application/json" hidden>
   <input type="file" id="fileAny" accept=".csv,.txt,.md,.markdown,.json,.html,.htm,text/csv,text/plain,text/markdown,application/json,text/html" multiple hidden>
@@ -249,10 +259,22 @@ const $ = id => document.getElementById(id);
 // state = { groups:[{id,name,tileIds:[],collapsed}], tiles:{id:{id,kind:'link'|'note',url,title,note,fav,done,shot,peek,added}} }
 // kind 'link' = http(s) page with a screenshot peek; kind 'note' = text item, optionally with a non-web link (file://, spotify:, …).
 // peek: 'none'|'queued'|'pending'|'ok'|'fail'|'limited' for links, 'na' for notes.
+// Several boards, each saved under its own key. The first board keeps the original key, so a board saved
+// before boards existed opens unchanged as "My board".
+const BOARDS = 'mosaicPeek.boards', CUR = 'mosaicPeek.board';
+const boardKey = id => id === 'main' ? KEY : 'mosaicPeek.b.' + id;
+function loadBoards(){
+  try { const b = JSON.parse(localStorage.getItem(BOARDS)); if (Array.isArray(b) && b.length && b.every(x => x && x.id && x.name)) return b; } catch(e){}
+  return [{ id:'main', name:'My board' }];
+}
+let boards = loadBoards();
+let boardId = localStorage.getItem(CUR); if (!boards.some(b => b.id === boardId)) boardId = boards[0].id;
+const boardName = () => (boards.find(b => b.id === boardId) || boards[0]).name;
+function saveBoards(){ try { localStorage.setItem(BOARDS, JSON.stringify(boards)); localStorage.setItem(CUR, boardId); } catch(e){ toast('Save failed: '+e.message); } }
 let state = load();
 function blank(){ return { version:2, groups:[{id:UNGROUPED,name:'Ungrouped',tileIds:[]}], tiles:{} }; }
 function load(){
-  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.groups && s.tiles) return sanitize(s); } catch(e){}
+  try { const s = JSON.parse(localStorage.getItem(boardKey(boardId))); if (s && s.groups && s.tiles) return sanitize(s); } catch(e){}
   return blank();
 }
 function sanitize(s){
@@ -270,7 +292,7 @@ function sanitize(s){
   return s;
 }
 let saveT; function save(){ clearTimeout(saveT); saveT = setTimeout(flush, 80); }
-function flush(){ clearTimeout(saveT); saveT = null; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){ toast('Save failed: '+e.message); } }
+function flush(){ clearTimeout(saveT); saveT = null; try{ localStorage.setItem(boardKey(boardId), JSON.stringify(state)); }catch(e){ toast('Save failed: '+e.message); } }
 addEventListener('pagehide', () => { if (saveT) flush(); });
 const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
 
@@ -475,7 +497,7 @@ function undoLastImport(){
 }
 function restoreBoard(s){
   if (!s.groups || !s.tiles){ toast('Import failed: missing groups/tiles'); return; }
-  if (Object.keys(state.tiles).length && !confirm('Replace the current board with this file?')) return;
+  if (Object.keys(state.tiles).length && !confirm(`Replace the board "${boardName()}" with this file?\n\nTo keep both: Cancel, pick "+ New empty board" from the board list, then restore again.`)) return;
   closePreview(false);
   state = sanitize({ version:2, groups:s.groups, tiles:s.tiles }); save(); render(); queuePeeks(); toast('Board restored');
 }
@@ -988,8 +1010,9 @@ $('viewSeg').onclick = e => { const v = e.target.dataset.view; if (!v || v===vie
 $('btnExpand').onclick = () => { state.groups.forEach(g=>g.collapsed=false); for (const t of Object.values(state.tiles)){ const g = groupOf(t.id); if (g && !isNote(t)) openSites.add(g.id+'|'+host(t.url)); } save(); render(); };
 $('btnCollapse').onclick = () => { state.groups.forEach(g=>g.collapsed=true); openSites.clear(); save(); render(); };
 $('btnExport').onclick = () => {
-  const blob = new Blob([JSON.stringify({...state, exportedAt:new Date().toISOString()}, null, 2)], {type:'application/json'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mosaic-peek-${new Date().toISOString().slice(0,10)}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  const blob = new Blob([JSON.stringify({...state, boardName:boardName(), exportedAt:new Date().toISOString()}, null, 2)], {type:'application/json'});
+  const slug = boardName().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'board';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mosaic-peek-${slug}-${new Date().toISOString().slice(0,10)}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 };
 $('btnImportJson').onclick = () => $('fileJson').click();
 $('fileJson').onchange = async e => {
@@ -1016,7 +1039,76 @@ document.addEventListener('drop', async e => {
   const txt = uris ? uris.split(/\r?\n/).filter(l => l && !l.startsWith('#')).join('\n') : e.dataTransfer.getData('text/plain');
   if (txt.trim()) addItems(parseInput(txt), gid);
 });
-window.addEventListener('storage', e => { if (e.key===KEY){ state = load(); render(); } });
+window.addEventListener('storage', e => {
+  if (e.key === BOARDS){ boards = loadBoards(); if (!boards.some(b => b.id === boardId)) switchBoard(boards[0].id); else fillBoardSelect(); }
+  else if (e.key === boardKey(boardId)){ state = load(); render(); }
+});
+
+// ---------- boards ----------
+// The board list doubles as the menu for starting a fresh empty board, renaming or deleting the current one.
+const selBoard = $('selBoard');
+function fillBoardSelect(){
+  selBoard.innerHTML = boards.map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')
+    + '<option disabled>──────────</option><option value="+new">+ New empty board…</option><option value="+rename">Rename this board…</option><option value="+delete">Delete this board…</option>';
+  selBoard.value = boardId;
+}
+function switchBoard(id){
+  if (saveT) flush();
+  closePreview(false); queue.length = 0;
+  boardId = id; saveBoards(); state = load();
+  fillBoardSelect(); render(); queuePeeks();
+}
+function newBoard(){
+  const n = prompt('Name for the new, empty board', 'New board'); if (!n || !n.trim()) return;
+  boards.push({ id:uid(), name:n.trim().slice(0, 60) }); switchBoard(boards[boards.length-1].id);
+  toast(`"${boardName()}" is ready. Your other boards are still in the board list.`);
+}
+function renameBoard(){
+  const n = prompt('Rename this board', boardName()); if (!n || !n.trim()) return;
+  boards.find(b => b.id === boardId).name = n.trim().slice(0, 60); saveBoards(); fillBoardSelect();
+}
+function deleteBoard(){
+  if (boards.length === 1){ toast('This is your only board. Use ⋯ Clear board to empty it.'); return; }
+  const n = Object.keys(state.tiles).length;
+  if (!confirm(`Delete the board "${boardName()}"${n ? ` and its ${n} item${n===1?'':'s'}` : ''}? Export it first if you might want it back.`)) return;
+  if (saveT){ clearTimeout(saveT); saveT = null; }
+  try { localStorage.removeItem(boardKey(boardId)); } catch(e){}
+  boards = boards.filter(b => b.id !== boardId); switchBoard(boards[0].id);
+}
+selBoard.onchange = () => {
+  const v = selBoard.value; selBoard.value = boardId;
+  if (v === '+new') newBoard(); else if (v === '+rename') renameBoard(); else if (v === '+delete') deleteBoard();
+  else if (v && v !== boardId) switchBoard(v);
+};
+fillBoardSelect();
+
+// ---------- installable app ----------
+// Served over http(s) (GitHub Pages), the app can be installed: Edge/Chrome on a PC or Android via the
+// browser's install prompt, iPhone via Share → Add to Home Screen. sw.js keeps an offline copy but always
+// tries the network first, so a new release shows up on the next online load. Opening the page with ?nosw
+// removes the offline copy, in case a release ever goes wrong. Nothing here runs from file://.
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+if (/^https?:$/.test(location.protocol)){
+  const m = document.createElement('link'); m.rel = 'manifest'; m.href = 'manifest.webmanifest'; document.head.append(m);
+  if ('serviceWorker' in navigator){
+    if (/[?&]nosw\b/.test(location.search)){
+      navigator.serviceWorker.getRegistrations().then(rs => Promise.all(rs.map(r => r.unregister())))
+        .then(() => window.caches && caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('mosaic-peek')).map(k => caches.delete(k)))))
+        .then(() => toast('Offline copy removed')).catch(() => {});
+    } else addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+  // Ask the browser not to clear this app's data under storage pressure (iPhone home-screen apps in particular).
+  if (standalone && navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(() => {});
+}
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('btnInstall').hidden = false; });
+addEventListener('appinstalled', () => { installEvt = null; $('btnInstall').hidden = true; toast('Installed. Open Mosaic Peek from your apps.'); });
+if (iOS && !standalone && /^https?:$/.test(location.protocol)) $('btnInstall').hidden = false;
+$('btnInstall').onclick = async () => {
+  if (installEvt){ installEvt.prompt(); const r = await installEvt.userChoice.catch(() => null); if (r && r.outcome === 'accepted') $('btnInstall').hidden = true; installEvt = null; return; }
+  alert('To install on iPhone or iPad:\n1. Export each board you want to keep (⋯ → Export board).\n2. In Safari, tap Share, then "Add to Home Screen".\n3. Open the new app and restore each board (⋯ → Restore board).\n\nThe home-screen app keeps its own copy, separate from Safari, so step 1 carries your boards across.');
+};
 
 setDrift(wall.drift);
 render(); queuePeeks();

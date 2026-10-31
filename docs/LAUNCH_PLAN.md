@@ -6,6 +6,16 @@ The plan reaches a public launch in about 6 months (early May 2027) at a relaxed
 
 The usage guide is [GUIDE.md](GUIDE.md).
 
+## Decided early (October 31, 2026)
+
+Kyle answered Gate A ahead of schedule: he wants the same private boards on his PC and iPhone. So:
+
+1. **Storage: local-first with optional sign-in.** Boards stay on each device and work offline; signing in syncs a private copy. This replaces the Gate A recommendation below; Phase 2 (IndexedDB) and Phase 3.1 (accounts and sync) build it.
+2. **Installable app now.** Step 3.2 shipped early: install from Edge or Chrome on a PC, Add to Home Screen on iPhone. It keeps an offline copy, always loads a new release when online, and opening the app with `?nosw` removes the offline copy if a release goes wrong.
+3. **Several boards.** "+ New empty board" in the board list starts fresh without clearing the old board.
+4. **Private by default, share one view on purpose.** A "Share this view" link comes in two steps: first a read-only snapshot packed into the link itself (no account needed), then revocable server links once sync exists. The Phase 0 safety fixes (imported boards can't run code) come first, because shared links show other people's boards.
+5. **Native apps later.** Tauri (Windows and iOS from the same page) only if the installed web app falls short, for example to receive links from the iPhone Share sheet, which Safari web apps can't do. iOS builds need a Mac and the Apple Developer Program.
+
 ## At a glance
 
 | # | Phase | Dates | Your time | Ends with |
