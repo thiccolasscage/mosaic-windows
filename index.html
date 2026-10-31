@@ -177,6 +177,7 @@ body.walling #stats{display:none}
   <span id="stats"></span>
   <button id="btnTheme" title="Theme: auto / light / dark">◐</button>
   <details class="menu" id="menu"><summary title="More">⋯</summary><div class="pop">
+    <button id="btnUndoImport" title="Remove everything the last add or import brought in">↶ Undo last import</button>
     <button id="btnPeeks" title="Retry failed / fetch missing screenshots">↻ Retry previews</button>
     <button id="btnExport">⤓ Export board (JSON)</button>
     <button id="btnImportJson">⤒ Restore board (JSON)</button>
@@ -236,6 +237,10 @@ body.walling #stats{display:none}
 const KEY = 'mosaicPeek.v1';
 const UNGROUPED = 'ungrouped';
 const MICROLINK = u => `https://api.microlink.io/?url=${encodeURIComponent(u)}&screenshot=true&meta=false`;
+// Fallback when Microlink's keyless quota (5 a day per network) is spent or it can't capture a page:
+// thum.io serves the screenshot itself as an image (1,000 free loads a month, cached by the browser for a day).
+const THUMIO = u => `https://image.thum.io/get/width/800/crop/600/${u}`;
+function useThumio(t){ t.shot = THUMIO(t.url); t.peek = 'ok'; t.via = 'thum'; }
 const FAVICON = d => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64`;
 const CONCURRENCY = 2;
 const $ = id => document.getElementById(id);
@@ -260,6 +265,7 @@ function sanitize(s){
     if (t.kind !== 'note') t.kind = 'link';
     if (t.kind === 'note') t.peek = 'na';
     else if (t.peek === 'pending' || t.peek === 'queued' || t.peek === 'na') t.peek = 'none';
+    else if ((t.peek === 'limited' || t.peek === 'fail') && t.via !== 'thum') useThumio(t); // boards saved before the fallback existed
   }
   return s;
 }
@@ -314,8 +320,8 @@ function cleanLine(l){
   const cb = l.match(/^\[( |x|X)\]\s*/); if (cb){ done = cb[1] !== ' '; l = l.slice(cb[0].length); }
   const md = l.match(/^\[([^\]]+)\]\((\S+?)\)\s*(.*)$/);
   if (md) return { title: md[1].trim(), url: md[2], note: md[3].replace(/^[-–—:|]\s*/,'').trim(), done };
-  const m = l.match(/\b(?:https?|file):\/\/\S+/i);
-  if (m){ const rest = (l.slice(0,m.index) + ' ' + l.slice(m.index+m[0].length)).replace(/^[\s\-–—:|]+|[\s\-–—:|]+$/g,'').trim(); return { url:m[0], title:rest, done }; }
+  const m = l.match(/\b(?:https?|file):\/\/[^\s,]+/i);
+  if (m){ const rest = (l.slice(0,m.index) + ' ' + l.slice(m.index+m[0].length)).replace(/^[\s\-–—:|,]+|[\s\-–—:|,]+$/g,'').trim(); return { url:m[0], title:rest, done }; }
   return { url:l, done };
 }
 function parseInput(text){
@@ -323,17 +329,18 @@ function parseInput(text){
   if (!lines.length) return [];
   const head = parseCSVLine(lines[0]).map(h=>h.trim().toLowerCase());
   const ui = head.findIndex(h => ['url','link','href','address','uri'].includes(h));
-  const csv = lines.some(l=>/[,\t]/.test(l)) && (ui >= 0 || lines.slice(1).every(l => normalize(parseCSVLine(l)[0])));
+  // CSV only with a recognised url column, or when every line (the first too) starts with a link; anything else is a plain list, so no line is ever dropped as a guessed header.
+  const csv = lines.some(l=>/[,\t]/.test(l)) && (ui >= 0 || (lines.length > 1 && lines.every(l => normalize(parseCSVLine(l)[0]))));
   if (!csv) return lines.map(cleanLine);
   const col = ui >= 0 ? ui : 0;
   const find = names => ui >= 0 ? head.findIndex(h => names.includes(h)) : -1;
-  const ti = find(['title','name']), ni = find(['note','notes','description','desc']), gi = find(['group','folder','category','list','tag']);
-  const rows = (ui >= 0 || !normalize(parseCSVLine(lines[0])[0])) ? lines.slice(1) : lines;
+  const ti = ui >= 0 ? find(['title','name']) : 1, ni = ui >= 0 ? find(['note','notes','description','desc']) : 2, gi = find(['group','folder','category','list','tag']);
+  const rows = ui >= 0 ? lines.slice(1) : lines;
   return rows.map(l => { const c = parseCSVLine(l); const v = k => k>=0 ? (c[k]||'').trim() : ''; return { url:c[col], title:v(ti), note:v(ni), group:v(gi) }; });
 }
 const ROOTS = /^(bookmarks( bar| toolbar| menu)?|other bookmarks|mobile bookmarks|favou?rites( bar)?|menu|toolbar|unfiled|mobile|root)$/i;
 // Netscape bookmark HTML (every browser's "Export bookmarks"). Innermost folder → group.
-function fromBookmarksHtml(text){
+function fromBookmarksHtml(text, askBase){
   const doc = new DOMParser().parseFromString(text, 'text/html');
   const folderOf = a => {
     for (let dl = a.closest('dl'); dl; dl = dl.parentElement && dl.parentElement.closest('dl')){
@@ -343,7 +350,36 @@ function fromBookmarksHtml(text){
     }
     return '';
   };
+  if (!/NETSCAPE-Bookmark-file/i.test(text) && !doc.querySelector('dt > a')) return fromWebPage(doc, text, askBase);
   return [...doc.querySelectorAll('a[href]')].map(a => ({ url:a.getAttribute('href'), title:a.textContent.trim(), group:folderOf(a) }));
+}
+// A saved web page rather than a bookmarks export: its links are often relative ("/products/x"), so resolve
+// them against the page's own address (<base>, the "saved from url" line Chrome adds, canonical or og:url),
+// asking for it when none is in the file. All links land in one group named after the page.
+const HAS_SCHEME = /^[a-z][\w+.-]*:/i;
+function fromWebPage(doc, text, askBase){
+  const attr = (sel, name) => { const el = doc.querySelector(sel); return el ? (el.getAttribute(name) || '').trim() : ''; };
+  const saved = (text.match(/saved from url=\(\d+\)(\S+?)\s*-->/i) || [])[1] || '';
+  let base = [attr('base[href]', 'href'), saved, attr('link[rel~="canonical"]', 'href'), attr('meta[property="og:url"]', 'content')].find(u => /^https?:\/\//i.test(u)) || '';
+  const anchors = [...doc.querySelectorAll('a[href]')].map(a => {
+    const img = a.querySelector('img[alt]');
+    const words = (a.textContent || '').replace(/\s+/g, ' ').trim() || a.getAttribute('aria-label') || a.getAttribute('title') || (img ? img.getAttribute('alt') : '') || '';
+    return { href:(a.getAttribute('href') || '').trim(), title:words.trim().slice(0, 200) };
+  }).filter(a => a.href && !a.href.startsWith('#') && !JUNK_LINK.test(a.href));
+  const relative = anchors.filter(a => !HAS_SCHEME.test(a.href) && !a.href.startsWith('//')).length;
+  if (relative && !base && askBase){ const v = askBase(relative); if (v) base = normalize(v) || ''; }
+  const group = (doc.title || '').replace(/\s+/g, ' ').trim().slice(0, 60) || (base ? host(base) : 'Imported page');
+  const out = [], byUrl = new Map();
+  for (const a of anchors){
+    let url = a.href;
+    if (url.startsWith('//')) url = 'https:' + url;
+    else if (!HAS_SCHEME.test(url)){ if (!base) continue; try { url = new URL(url, base).href; } catch(e){ continue; } }
+    const k = url.split('#')[0];
+    if (byUrl.has(k)){ const prev = byUrl.get(k); if (!prev.title) prev.title = a.title; continue; } // same page linked twice: keep the one with words
+    const it = { url, title:a.title, group }; byUrl.set(k, it); out.push(it);
+  }
+  out.skipped = base ? 0 : relative;
+  return out;
 }
 // Chrome "Bookmarks" file, Firefox JSON backup, arrays of strings/objects, or { "Group": [...] } maps.
 function fromJson(j){
@@ -364,8 +400,8 @@ function fromJson(j){
   else walk(j, '');
   return out;
 }
-function itemsFromFile(name, text){
-  if (/\.html?$/i.test(name) || /<dt>\s*<a\s/i.test(text)) return fromBookmarksHtml(text);
+function itemsFromFile(name, text, askBase){
+  if (/\.html?$/i.test(name) || /<dt>\s*<a\s/i.test(text)) return fromBookmarksHtml(text, askBase);
   if (/\.json$/i.test(name) || /^\s*[\[{]/.test(text)){
     const j = JSON.parse(text);
     if (j && j.groups && j.tiles) return { board:j };
@@ -379,10 +415,11 @@ function groupNamed(name){
   if (!g){ g = { id:uid(), name, tileIds:[] }; state.groups.push(g); }
   return g;
 }
-function addItems(items, groupId){
+function addItems(items, groupId, alsoSkipped = 0){
   const existing = new Set(Object.values(state.tiles).map(keyOf));
   const fallback = state.groups.find(x=>x.id===groupId) || state.groups.find(x=>x.id===UNGROUPED);
-  let links=0, notes=0, dup=0, skipped=0;
+  let links=0, notes=0, dup=0, skipped=alsoSkipped;
+  const batch = uid(), groupsBefore = new Set(state.groups.map(g => g.id));
   for (const it of items){
     const raw = String(it.url||'').trim(), title = String(it.title||'').trim(), url = normalize(raw);
     let t;
@@ -394,22 +431,47 @@ function addItems(items, groupId){
     const k = keyOf(t);
     if (existing.has(k)){ dup++; continue; }
     existing.add(k);
-    Object.assign(t, { id:uid(), note:String(it.note||'').trim(), shot:'', peek: t.kind==='link' ? 'none' : 'na', added:Date.now() });
+    Object.assign(t, { id:uid(), note:String(it.note||'').trim(), shot:'', peek: t.kind==='link' ? 'none' : 'na', added:Date.now(), batch });
     if (it.done) t.done = true;
     if (it.fav) t.fav = true;
     state.tiles[t.id] = t;
     (it.group && String(it.group).trim() ? groupNamed(it.group) : fallback).tileIds.push(t.id);
     t.kind === 'link' ? links++ : notes++;
   }
+  if (links + notes) state.lastImport = { batch, at:Date.now(), count:links + notes, groups:state.groups.filter(g => !groupsBefore.has(g.id)).map(g => g.id) };
   save(); render(); queuePeeks();
   toast(`Added ${links} link${links===1?'':'s'}` + (notes?` · ${notes} note${notes===1?'':'s'}`:'') + (dup?` · ${dup} duplicate`:'') + (skipped?` · ${skipped} skipped`:''));
 }
 async function importFile(f, groupId){
   let res;
-  try { res = itemsFromFile(f.name, await f.text()); } catch(e){ toast(`Couldn't read ${f.name}: ${e.message}`); return; }
+  const askBase = n => prompt(`${f.name} has ${n} links without a full web address. What was the page's address? (for example https://example.com)`, 'https://');
+  try { res = itemsFromFile(f.name, await f.text(), askBase); } catch(e){ toast(`Couldn't read ${f.name}: ${e.message}`); return; }
   if (res.board){ restoreBoard(res.board); return; }
-  if (!res.length){ toast(`Nothing found in ${f.name}`); return; }
-  addItems(res, groupId || UNGROUPED);
+  if (!res.length){ toast(`Nothing found in ${f.name}` + (res.skipped ? ` (${res.skipped} links had no full address)` : '')); return; }
+  addItems(res, groupId || UNGROUPED, res.skipped || 0);
+}
+// Undo the most recent add or import. Boards saved before imports were tagged fall back to the
+// items added within a few seconds of the newest one; the confirm shows the count first.
+function undoLastImport(){
+  const li = state.lastImport, all = Object.values(state.tiles);
+  let ids, when;
+  if (li && all.some(t => t.batch === li.batch)){ ids = all.filter(t => t.batch === li.batch).map(t => t.id); when = li.at; }
+  else {
+    const newest = Math.max(0, ...all.map(t => t.added || 0));
+    if (!newest){ toast('Nothing to undo'); return; }
+    ids = all.filter(t => (t.added || 0) >= newest - 5000).map(t => t.id); when = newest;
+  }
+  if (!ids.length){ toast('Nothing to undo'); return; }
+  const at = new Date(when).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  if (!confirm(`Remove the ${ids.length} item${ids.length===1?'':'s'} added at ${at}? Export a backup first if you're unsure.`)) return;
+  closePreview(false);
+  const gone = new Set(ids);
+  for (const id of ids) delete state.tiles[id];
+  for (const g of state.groups) g.tileIds = g.tileIds.filter(id => !gone.has(id));
+  const made = new Set((li && li.groups) || []);
+  state.groups = state.groups.filter(g => !(made.has(g.id) && !g.tileIds.length));
+  delete state.lastImport;
+  save(); render(); toast(`Removed ${ids.length} item${ids.length===1?'':'s'}`);
 }
 function restoreBoard(s){
   if (!s.groups || !s.tiles){ toast('Import failed: missing groups/tiles'); return; }
@@ -418,7 +480,7 @@ function restoreBoard(s){
   state = sanitize({ version:2, groups:s.groups, tiles:s.tiles }); save(); render(); queuePeeks(); toast('Board restored');
 }
 
-// ---------- peeks (Microlink) ----------
+// ---------- peeks (Microlink, then thum.io) ----------
 const queue = []; let active = 0; let limitedUntil = 0;
 function queuePeeks(retry=false){
   for (const t of Object.values(state.tiles)){
@@ -430,8 +492,8 @@ function queuePeeks(retry=false){
 }
 function pump(){
   while (active < CONCURRENCY && queue.length){
-    if (Date.now() < limitedUntil){ // rate-limited: mark rest as limited, stop
-      while (queue.length){ const t = state.tiles[queue.shift()]; if (t){ t.peek='limited'; refreshTile(t.id); } }
+    if (Date.now() < limitedUntil){ // Microlink quota spent: the rest of the queue goes straight to thum.io
+      while (queue.length){ const t = state.tiles[queue.shift()]; if (t){ useThumio(t); refreshTile(t.id); } }
       save(); updateStats(); return;
     }
     const id = queue.shift(); const t = state.tiles[id]; if (!t || isNote(t)) continue;
@@ -443,12 +505,13 @@ async function fetchPeek(t){
   try {
     const ctrl = new AbortController(); const to = setTimeout(()=>ctrl.abort(), 25000);
     const r = await fetch(MICROLINK(t.url), { signal: ctrl.signal }); clearTimeout(to);
-    if (r.status === 429){ t.peek='limited'; limitedUntil = Date.now() + 10*60*1000; toast('Microlink rate limit hit — showing placeholders. Try ↻ Retry previews later.'); return; }
+    if (r.status === 429){ limitedUntil = Date.now() + 10*60*1000; useThumio(t); toast("Microlink's free daily screenshots are used up; using thum.io for the rest."); return; }
     const j = await r.json().catch(()=>null);
     const shot = j && j.status === 'success' && j.data && j.data.screenshot && j.data.screenshot.url;
-    if (shot){ t.shot = shot; t.peek='ok'; }
-    else { t.peek = (j && /rate|limit/i.test(j.code||j.message||'')) ? 'limited' : 'fail'; if (t.peek==='limited') limitedUntil = Date.now()+10*60*1000; }
-  } catch(e){ t.peek='fail'; }
+    if (shot){ t.shot = shot; t.peek='ok'; t.via = 'microlink'; return; }
+    if (j && /rate|limit/i.test(j.code||j.message||'')) limitedUntil = Date.now()+10*60*1000;
+    useThumio(t);
+  } catch(e){ useThumio(t); }
 }
 
 // ---------- render ----------
@@ -604,7 +667,7 @@ function tileEl(t){
   wireDrag(el, t);
   return el;
 }
-window.__mpShotErr = id => { const t = state.tiles[id]; if (t && t.peek==='ok'){ t.peek='fail'; t.shot=''; save(); refreshTile(id); } };
+window.__mpShotErr = id => { const t = state.tiles[id]; if (!t || t.peek !== 'ok') return; if (t.via === 'thum'){ t.peek='fail'; t.shot=''; } else useThumio(t); save(); refreshTile(id); }; // an expired Microlink image falls back to thum.io once
 function refreshTile(id){
   const t = state.tiles[id]; if (!t) return;
   const el = board.querySelector(`.tile[data-id="${id}"]`);
@@ -920,6 +983,7 @@ const size = $('size');
 size.oninput = () => { const old = wall.layout && wall.layout.d; document.documentElement.style.setProperty('--tile', size.value+'px'); localStorage.setItem(KEY+'.size', size.value); if (old) rescaleWall(old); };
 size.value = localStorage.getItem(KEY+'.size') || 220; size.oninput();
 $('btnPeeks').onclick = () => queuePeeks(true);
+$('btnUndoImport').onclick = undoLastImport;
 $('viewSeg').onclick = e => { const v = e.target.dataset.view; if (!v || v===view) return; view = v; localStorage.setItem(KEY+'.view', v); render(); };
 $('btnExpand').onclick = () => { state.groups.forEach(g=>g.collapsed=false); for (const t of Object.values(state.tiles)){ const g = groupOf(t.id); if (g && !isNote(t)) openSites.add(g.id+'|'+host(t.url)); } save(); render(); };
 $('btnCollapse').onclick = () => { state.groups.forEach(g=>g.collapsed=true); openSites.clear(); save(); render(); };
