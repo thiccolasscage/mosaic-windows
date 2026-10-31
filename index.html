@@ -236,6 +236,10 @@ body.walling #stats{display:none}
 const KEY = 'mosaicPeek.v1';
 const UNGROUPED = 'ungrouped';
 const MICROLINK = u => `https://api.microlink.io/?url=${encodeURIComponent(u)}&screenshot=true&meta=false`;
+// Fallback when Microlink's keyless quota (5 a day per network) is spent or it can't capture a page:
+// thum.io serves the screenshot itself as an image (1,000 free loads a month, cached by the browser for a day).
+const THUMIO = u => `https://image.thum.io/get/width/800/crop/600/${u}`;
+function useThumio(t){ t.shot = THUMIO(t.url); t.peek = 'ok'; t.via = 'thum'; }
 const FAVICON = d => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64`;
 const CONCURRENCY = 2;
 const $ = id => document.getElementById(id);
@@ -260,6 +264,7 @@ function sanitize(s){
     if (t.kind !== 'note') t.kind = 'link';
     if (t.kind === 'note') t.peek = 'na';
     else if (t.peek === 'pending' || t.peek === 'queued' || t.peek === 'na') t.peek = 'none';
+    else if ((t.peek === 'limited' || t.peek === 'fail') && t.via !== 'thum') useThumio(t); // boards saved before the fallback existed
   }
   return s;
 }
@@ -419,7 +424,7 @@ function restoreBoard(s){
   state = sanitize({ version:2, groups:s.groups, tiles:s.tiles }); save(); render(); queuePeeks(); toast('Board restored');
 }
 
-// ---------- peeks (Microlink) ----------
+// ---------- peeks (Microlink, then thum.io) ----------
 const queue = []; let active = 0; let limitedUntil = 0;
 function queuePeeks(retry=false){
   for (const t of Object.values(state.tiles)){
@@ -431,8 +436,8 @@ function queuePeeks(retry=false){
 }
 function pump(){
   while (active < CONCURRENCY && queue.length){
-    if (Date.now() < limitedUntil){ // rate-limited: mark rest as limited, stop
-      while (queue.length){ const t = state.tiles[queue.shift()]; if (t){ t.peek='limited'; refreshTile(t.id); } }
+    if (Date.now() < limitedUntil){ // Microlink quota spent: the rest of the queue goes straight to thum.io
+      while (queue.length){ const t = state.tiles[queue.shift()]; if (t){ useThumio(t); refreshTile(t.id); } }
       save(); updateStats(); return;
     }
     const id = queue.shift(); const t = state.tiles[id]; if (!t || isNote(t)) continue;
@@ -444,12 +449,13 @@ async function fetchPeek(t){
   try {
     const ctrl = new AbortController(); const to = setTimeout(()=>ctrl.abort(), 25000);
     const r = await fetch(MICROLINK(t.url), { signal: ctrl.signal }); clearTimeout(to);
-    if (r.status === 429){ t.peek='limited'; limitedUntil = Date.now() + 10*60*1000; toast('Microlink rate limit hit, showing placeholders. Try ↻ Retry previews later.'); return; }
+    if (r.status === 429){ limitedUntil = Date.now() + 10*60*1000; useThumio(t); toast("Microlink's free daily screenshots are used up; using thum.io for the rest."); return; }
     const j = await r.json().catch(()=>null);
     const shot = j && j.status === 'success' && j.data && j.data.screenshot && j.data.screenshot.url;
-    if (shot){ t.shot = shot; t.peek='ok'; }
-    else { t.peek = (j && /rate|limit/i.test(j.code||j.message||'')) ? 'limited' : 'fail'; if (t.peek==='limited') limitedUntil = Date.now()+10*60*1000; }
-  } catch(e){ t.peek='fail'; }
+    if (shot){ t.shot = shot; t.peek='ok'; t.via = 'microlink'; return; }
+    if (j && /rate|limit/i.test(j.code||j.message||'')) limitedUntil = Date.now()+10*60*1000;
+    useThumio(t);
+  } catch(e){ useThumio(t); }
 }
 
 // ---------- render ----------
@@ -605,7 +611,7 @@ function tileEl(t){
   wireDrag(el, t);
   return el;
 }
-window.__mpShotErr = id => { const t = state.tiles[id]; if (t && t.peek==='ok'){ t.peek='fail'; t.shot=''; save(); refreshTile(id); } };
+window.__mpShotErr = id => { const t = state.tiles[id]; if (!t || t.peek !== 'ok') return; if (t.via === 'thum'){ t.peek='fail'; t.shot=''; } else useThumio(t); save(); refreshTile(id); }; // an expired Microlink image falls back to thum.io once
 function refreshTile(id){
   const t = state.tiles[id]; if (!t) return;
   const el = board.querySelector(`.tile[data-id="${id}"]`);

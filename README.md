@@ -38,10 +38,10 @@ A mosaic of mini windows for everything you've saved or started: links, unfinish
 
 ## Peeks
 - Favicon: `https://www.google.com/s2/favicons?domain=…&sz=64`.
-- Screenshot: `https://api.microlink.io/?url=…&screenshot=true&meta=false`, 2 requests at a time, result URL cached in the board so reloads don't re-fetch.
-- On failure → styled placeholder (domain + favicon, color from domain). On HTTP 429 / rate-limit → remaining queue switches to "preview rate-limited" placeholders for 10 min; **↻ Peeks** retries failed/limited ones.
-- Caveats: Microlink's free, keyless tier is very small (its docs say about 5 requests/day per IP; 25/day with a free key), each capture takes a few seconds, sites with bot walls/logins may return blank or consent screens, and cached screenshot URLs are hosted by Microlink and may expire (a broken image falls back to the placeholder; ↻ re-captures).
-
+- Screenshot: Microlink first (`https://api.microlink.io/?url=…&screenshot=true&meta=false`, 2 at a time, result URL cached in the board). Its keyless tier allows 5 captures a day per network (from its `x-rate-limit-limit` header).
+- When Microlink is rate-limited or can't capture a page, the tile uses thum.io (`https://image.thum.io/get/width/800/crop/600/<url>`): 1,000 free image loads a month with no key, cached by the browser for a day. A brand-new capture may first show thum.io's "loading" image; a reload shows the real one.
+- If both fail → styled placeholder (domain + favicon). **↻ Retry previews** in the ⋯ menu retries; hover ↻ re-captures one tile.
+- Every saved URL is sent to these services, so don't save private or tokenized links. The launch plan replaces both with its own cached screenshot server (Phase 1).
 ## Scope
 In: paste/CSV/Markdown/bookmark/JSON import, link + note tiles, mosaic grid, tree view, forever wall, full-screen preview, notes, favourites, done, Claude hand-off, light/dark, groups (create/rename/delete/reorder), drag-and-drop (tiles and files), localStorage, JSON export/import.
 Later: live/animated tiles on the wall, uploaded images/audio as tiles, browser extension reading open tabs, live iframes / in-tile browsing, multi-user sync, API-key Microlink tier.

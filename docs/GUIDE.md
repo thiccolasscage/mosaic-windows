@@ -19,7 +19,7 @@ Mosaic Peek is a wall of mini windows. Each tile is something you saved or start
 | Everything is saved in this browser only (its local storage). | Your phone and laptop have separate boards. Clearing browser data deletes the board. |
 | There is no account and no server of ours. | Nobody else can see your board. There is also **no automatic backup**. |
 | Safari can delete a website's saved data after about 7 days without a visit. | In Safari on iPhone and Mac, export a backup weekly (see 1.7). |
-| Each saved link is sent to Microlink to take a screenshot, and each domain to Google to fetch its icon. | Don't save links you wouldn't paste into another website: password-reset links, links with tokens, internal company pages. |
+| Each saved link is sent to a screenshot service (Microlink first, thum.io when Microlink's quota is spent), and each domain to Google for its icon. | Don't save links you wouldn't paste into another website: password-reset links, links with tokens, internal company pages. |
 
 ### 1.3 First 20 minutes (set up once)
 
@@ -33,7 +33,7 @@ Mosaic Peek is a wall of mini windows. Each tile is something you saved or start
 4. Dump your open loops (10 minutes): click + Add and type one thing per line: projects you started, ideas, things you keep meaning to do. Lines that aren't links become note cards. `- [ ]` and `- [x]` work, and `[x]` marks it done.
 5. Pick a theme: the ◐ button cycles Auto, Light and Dark.
 
-Screenshots fill in slowly. Without a key, Microlink's free tier allows about 5 captures per day per network (its rate-limit docs, checked October 30, 2026). Tiles without one show a colored card with the site's name, and ↻ Retry previews in the ⋯ menu tries again later. This is the biggest known weakness; the plan fixes it in the first weeks of Phase 1.
+Screenshots come from two free services. Microlink takes the first 5 each day (its limit without a key, confirmed from its response headers on October 30, 2026); after that, and for any page Microlink can't capture, thum.io fills in (1,000 free image loads a month, no sign-up). A brand-new thum.io screenshot may first show a "loading" picture; reload the page a minute later. The plan's own screenshot server (Phase 1) replaces both.
 
 ### 1.4 The three views
 
@@ -113,8 +113,9 @@ Known gap: tiles can't yet be opened with the keyboard alone (Tab and Enter). Th
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Tiles say "preview rate-limited" | The free screenshot quota is used up. | Wait a day, then ⋯ then ↻ Retry previews. |
-| A tile says "no preview" | The site blocked the screenshot or timed out. | In Mosaic view, hover the tile and press ↻ once. Some sites never allow it. |
+| A tile shows a "loading" picture | thum.io was still taking the screenshot. | Reload the page after a minute. |
+| Previews stop appearing late in the month | thum.io's 1,000 free loads a month may be used up. | Wait for the new month, or add thum.io's $1/month plan (Phase 1 builds a proper fix). |
+| A tile says "no preview" | Both services failed for that page. | In Mosaic view, hover the tile and press ↻ once. Some sites never allow it. |
 | Board is empty after a while on iPhone | Safari deleted the site's data. | Restore your latest export. Export weekly from now on. |
 | Edits vanished with two tabs open | Other tabs refresh when you save, but editing in two tabs at once can overwrite. | Edit in one tab at a time. |
 
@@ -137,7 +138,7 @@ You haven't decided whether Mosaic Peek will be commercial, and you don't need t
 ### 2.2 Using it for paid work today (path A)
 
 Reasonable to do, with these limits:
-1. Client confidentiality. Every saved link goes to Microlink (screenshots) and every domain to Google (icons). Don't save client links that are private, tokenized or under an NDA.
+1. Client confidentiality. Every saved link goes to a screenshot service (Microlink or thum.io) and every domain to Google (icons). Don't save client links that are private, tokenized or under an NDA.
 2. Microlink's terms (no date shown, checked October 30, 2026) allow personal, commercial and non-commercial use but ban undefined "unfair use". Heavy client work needs their paid plan ($49/month for about 46,000 captures as listed then) or the plan's own screenshot server.
 3. Backups are on you. There is no server copy. Export before every client delivery.
 4. Screenshots of other sites are lower risk when kept for your own private reference. Don't put them in client deliverables without the site owner's permission. The court cases that support thumbnails were about search engines, so don't assume they cover other uses.
