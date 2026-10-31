@@ -42,6 +42,7 @@ A mosaic of mini windows for everything you've saved or started: links, unfinish
 - When Microlink is rate-limited or can't capture a page, the tile uses thum.io (`https://image.thum.io/get/width/800/crop/600/<url>`): 1,000 free image loads a month with no key, cached by the browser for a day. A brand-new capture may first show thum.io's "loading" image; a reload shows the real one.
 - If both fail → styled placeholder (domain + favicon). **↻ Retry previews** in the ⋯ menu retries; hover ↻ re-captures one tile.
 - Every saved URL is sent to these services, so don't save private or tokenized links. The launch plan replaces both with its own cached screenshot server (Phase 1).
+
 ## Scope
 In: paste/CSV/Markdown/bookmark/JSON import, link + note tiles, mosaic grid, tree view, forever wall, full-screen preview, notes, favourites, done, Claude hand-off, light/dark, groups (create/rename/delete/reorder), drag-and-drop (tiles and files), localStorage, JSON export/import.
 Later: live/animated tiles on the wall, uploaded images/audio as tiles, browser extension reading open tabs, live iframes / in-tile browsing, multi-user sync, API-key Microlink tier.
