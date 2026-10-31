@@ -11,6 +11,9 @@ SFW lane (Grok Bot / App Ideas). Keep Theme Spin, NSFW, and Aisle 69 assets out 
 ## Run
 Open `index.html` directly, or `python3 -m http.server 8080` from the repo root.
 
+## Tests
+`npm ci && npx playwright install chromium && npm test` (GitHub Actions runs the same on every PR). After any edit to the inline `<script>` in `index.html`, run `npm run csp` to refresh the Content-Security-Policy hash, or the page script is blocked and the tests fail.
+
 ## Next
 - Check the Pages URL is still healthy.
 - Tiles are `kind: 'link'` (http(s), Microlink peek) or `kind: 'note'` (text, optional non-web link). Keep old boards (no `kind`) loading.

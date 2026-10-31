@@ -19,7 +19,7 @@ Mosaic Peek is a wall of mini windows. Each tile is something you saved or start
 | Everything is saved in this browser only (its local storage). | Your phone and laptop have separate boards. Clearing browser data deletes the board. |
 | There is no account and no server of ours. | Nobody else can see your board. There is also **no automatic backup**. |
 | Safari can delete a website's saved data after about 7 days without a visit. | In Safari on iPhone and Mac, export a backup weekly (see 1.7). |
-| Each saved link is sent to a screenshot service (Microlink first, thum.io when Microlink's quota is spent), and each domain to Google for its icon. | Don't save links you wouldn't paste into another website: password-reset links, links with tokens, internal company pages. |
+| Each saved link is sent to a screenshot service (Microlink first, thum.io when Microlink's quota is spent), and each domain to Google for its icon. | Mark anything sensitive as private (🔒 on a group, or 🔒 Private in a tile's preview): private links are never sent to either service. Passwords inside links are removed when you save them. |
 
 ### 1.3 First 20 minutes (set up once)
 
@@ -82,6 +82,8 @@ Paste it into Claude, Claude Code or another assistant. The hand-off already ask
 
 ### 1.7 Backups (5 minutes a week)
 
+A bar under the toolbar reminds you once a week per board (when it holds 5 or more items) and shows the last export date.
+
 1. ⋯ menu, then Export board (JSON). A file like `mosaic-peek-my-board-2026-11-08.json` downloads, named after the board. (The date in the name is in UTC, so late in the evening it can show tomorrow.)
 2. Put it in a cloud folder (Google Drive, iCloud, OneDrive).
 3. Imported the wrong thing? ⋯ menu, then ↶ Undo last import removes everything that add or import brought in, after showing you how many.
@@ -89,7 +91,11 @@ Paste it into Claude, Claude Code or another assistant. The hand-off already ask
 
 The board list also starts a fresh, empty board, renames the current one, or deletes it. Each board is saved and exported separately.
 
-To move a board between devices, export on one and restore on the other. Until Phase 0 is done, **only restore files you exported yourself**: a board file from someone else could contain harmful code.
+To move a board between devices, export on one and restore on the other. Restoring checks every item first, so a board file from someone else can't run code or sneak in a harmful link.
+
+If the app ever finds saved data it can't read, it keeps a copy, opens the board empty and shows a bar with a download button. If saving fails (for example, the browser is out of space), a bar stays up until a save works: export right away.
+
+⋯ menu, then 📊 Your stats shows how many days you opened the app, hand-offs you copied and items you marked done in the last 7 and 30 days. It is counted on this device only, and the `Mosaic feedback` group is left out.
 
 ### 1.8 Import formats cheat sheet
 
@@ -121,6 +127,7 @@ Known gap: tiles can't yet be opened with the keyboard alone (Tab and Enter). Th
 | A tile shows a "loading" picture | thum.io was still taking the screenshot. | Reload the page after a minute. |
 | Previews stop appearing late in the month | thum.io's 1,000 free loads a month may be used up. | Wait for the new month, or add thum.io's $1/month plan (Phase 1 builds a proper fix). |
 | A tile says "no preview" | Both services failed for that page. | In Mosaic view, hover the tile and press ↻ once. Some sites never allow it. |
+| ⊕ Install app shows steps instead of installing | The browser hasn't offered its install prompt yet, or the app is already installed. | Follow the steps it shows (Edge: ⋯, Apps, Install this site as an app), or look for Mosaic Peek in your Start menu. |
 | Board is empty after a while on iPhone | Safari deleted the site's data. | Restore your latest export. Export weekly from now on. |
 | Edits vanished with two tabs open | Other tabs refresh when you save, but editing in two tabs at once can overwrite. | Edit in one tab at a time. |
 
@@ -162,7 +169,7 @@ The repository is public but has no license file. By default that means all righ
 
 | Area | Needed | Why |
 |---|---|---|
-| Security | Phase 0 fixes (imported boards can't run code, links re-checked, a Content-Security-Policy) | Today a crafted board file could run code in the browser. |
+| Security | Done Oct 31, 2026: imported boards can't run code, links are re-checked, Content-Security-Policy, automated tests on every pull request | Keep the tests passing as features are added. |
 | Own domain | `mosaicpeek.app` or similar instead of `github.io` | Today other pages on the same github.io address share the app's storage. |
 | Screenshot server | A small server (a Cloudflare Worker) that holds the key, caches screenshots, rate-limits each user and refuses private network addresses | The keyless tier is tiny, and a key must not sit in the page. |
 | Accounts and sync, if chosen | Sign-in, server storage, export and account deletion | People expect boards on every device; privacy law and app stores expect deletion. |
