@@ -84,7 +84,8 @@ Paste it into Claude, Claude Code or another assistant. The hand-off already ask
 
 1. ⋯ menu, then Export board (JSON). A file like `mosaic-peek-2026-11-08.json` downloads. (The date in the name is in UTC, so late in the evening it can show tomorrow.)
 2. Put it in a cloud folder (Google Drive, iCloud, OneDrive).
-3. To restore: ⋯ menu, then Restore board (JSON). This replaces the current board; it does not merge. Export first if the current one matters.
+3. Imported the wrong thing? ⋯ menu, then ↶ Undo last import removes everything that add or import brought in, after showing you how many.
+4. To restore: ⋯ menu, then Restore board (JSON). This replaces the current board; it does not merge. Export first if the current one matters.
 
 To move a board between devices, export on one and restore on the other. Until Phase 0 is done, **only restore files you exported yourself**: a board file from someone else could contain harmful code.
 
@@ -94,6 +95,7 @@ To move a board between devices, export on one and restore on the other. Until P
 |---|---|
 | Browser bookmarks | Export to HTML (see 1.3) and drop the file on the page. |
 | Chrome's internal `Bookmarks` file | Drop it on the page. Folders become groups. |
+| A saved web page (File, Save page as) | Drop the `.html` file on the page. Its links become one group named after the page. Relative links (`/products/...`) are completed with the page's address; if the file doesn't say what that was, you're asked for it. |
 | A to-do list or notes | Paste it into + Add, one item per line. Markdown lists work. |
 | A spreadsheet | Save as CSV with a `url` column (or links in the first column), plus optional `title`, `note` and `group` columns. Rows without a link become notes. |
 | Songs, files, app links | Paste links like `spotify:track:…`. They become note cards with ↗ Open. Browsers usually block web pages from opening `file:///` links, so file links may only work as a record of where the file lives. |
@@ -113,6 +115,7 @@ Known gap: tiles can't yet be opened with the keyboard alone (Tab and Enter). Th
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| Links from a web page became notes with no address | An older version couldn't complete relative links like `/products/...`. | ⋯ menu, ↶ Undo last import (check the count it shows), then drop the page file in again. |
 | A tile shows a "loading" picture | thum.io was still taking the screenshot. | Reload the page after a minute. |
 | Previews stop appearing late in the month | thum.io's 1,000 free loads a month may be used up. | Wait for the new month, or add thum.io's $1/month plan (Phase 1 builds a proper fix). |
 | A tile says "no preview" | Both services failed for that page. | In Mosaic view, hover the tile and press ↻ once. Some sites never allow it. |
