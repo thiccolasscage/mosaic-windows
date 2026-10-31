@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mosaic Peek</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Z+4WNyEDZ+Q/4V39o16UpwmRcdGNGy8XWqJIxIPTlFs='; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://api.microlink.io; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="theme-color" content="#0f1115">
 <meta name="description" content="A mosaic of mini windows for links, unfinished projects, to-dos, files and songs.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -81,6 +82,12 @@ dialog .row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wr
 .hint{color:var(--mute);font-size:12px}
 #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:40;box-shadow:var(--shadow)}
 #toast.show{opacity:1}
+#warn{position:sticky;top:var(--hdrH,56px);z-index:4;display:flex;flex-direction:column;gap:6px;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--warn)}
+#warn[hidden]{display:none}
+#warn>div{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#warn button{padding:3px 9px;font-size:12px}
+#warn .w-backup{border-color:var(--line)}
+.ph .lt{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:var(--fg);background:#fff2}
 .empty{color:var(--mute);text-align:center;padding:60px 0}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{border:0;border-radius:0;background:var(--panel)}
@@ -186,6 +193,7 @@ body.walling #stats{display:none}
   <span id="stats"></span>
   <button id="btnTheme" title="Theme: auto / light / dark">◐</button>
   <details class="menu" id="menu"><summary title="More">⋯</summary><div class="pop">
+    <button id="btnStats" title="What you've used, counted on this device only">📊 Your stats</button>
     <button id="btnUndoImport" title="Remove everything the last add or import brought in">↶ Undo last import</button>
     <button id="btnPeeks" title="Retry failed / fetch missing screenshots">↻ Retry previews</button>
     <button id="btnExport">⤓ Export board (JSON)</button>
@@ -196,6 +204,7 @@ body.walling #stats{display:none}
   <input type="file" id="fileJson" accept=".json,application/json" hidden>
   <input type="file" id="fileAny" accept=".csv,.txt,.md,.markdown,.json,.html,.htm,text/csv,text/plain,text/markdown,application/json,text/html" multiple hidden>
 </header>
+<div id="warn" hidden role="status"></div>
 <main id="board"></main>
 
 <dialog id="dlgImport">
@@ -225,6 +234,7 @@ body.walling #stats{display:none}
       <span class="spacer"></span>
       <button id="pvFav">☆ Favourite</button>
       <button id="pvDone">✓ Done</button>
+      <button id="pvPriv" title="Private: never send this link to the screenshot or icon services">🔒 Private</button>
       <button id="pvOpen">↗ Open</button>
       <button class="danger" id="pvDel">Remove</button>
       <button class="primary" id="pvHand" title="Copy a brief for Claude about this item">Copy hand-off</button>
@@ -255,10 +265,20 @@ const FAVICON = d => `https://www.google.com/s2/favicons?domain=${encodeURICompo
 const CONCURRENCY = 2;
 const $ = id => document.getElementById(id);
 
+// ---------- lasting warnings ----------
+// Shown under the header until the problem is gone (or, for the backup reminder, snoozed).
+const warnings = new Map();
+function setWarn(key, html){
+  if (html) warnings.set(key, html); else warnings.delete(key);
+  const w = $('warn'); w.hidden = !warnings.size;
+  w.innerHTML = [...warnings].map(([k, h]) => `<div class="w-${k}">${h}</div>`).join('');
+}
+
 // ---------- state ----------
 // state = { groups:[{id,name,tileIds:[],collapsed}], tiles:{id:{id,kind:'link'|'note',url,title,note,fav,done,shot,peek,added}} }
 // kind 'link' = http(s) page with a screenshot peek; kind 'note' = text item, optionally with a non-web link (file://, spotify:, …).
 // peek: 'none'|'queued'|'pending'|'ok'|'fail'|'limited' for links, 'na' for notes.
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
 // Several boards, each saved under its own key. The first board keeps the original key, so a board saved
 // before boards existed opens unchanged as "My board".
 const BOARDS = 'mosaicPeek.boards', CUR = 'mosaicPeek.board';
@@ -271,30 +291,70 @@ let boards = loadBoards();
 let boardId = localStorage.getItem(CUR); if (!boards.some(b => b.id === boardId)) boardId = boards[0].id;
 const boardName = () => (boards.find(b => b.id === boardId) || boards[0]).name;
 function saveBoards(){ try { localStorage.setItem(BOARDS, JSON.stringify(boards)); localStorage.setItem(CUR, boardId); } catch(e){ toast('Save failed: '+e.message); } }
-let state = load();
+let state; // loaded once the link helpers below exist
 function blank(){ return { version:2, groups:[{id:UNGROUPED,name:'Ungrouped',tileIds:[]}], tiles:{} }; }
+// Saved data that can't be read is never overwritten: a copy is kept under its own key (or, if that fails,
+// saving pauses) and a lasting warning offers it as a download.
+let unreadable = null, savePaused = false;
 function load(){
-  try { const s = JSON.parse(localStorage.getItem(boardKey(boardId))); if (s && s.groups && s.tiles) return sanitize(s); } catch(e){}
+  const key = boardKey(boardId); let raw = null;
+  try { raw = localStorage.getItem(key); } catch(e){}
+  if (raw == null) return blank();
+  try { const s = JSON.parse(raw); if (s && typeof s === 'object' && s.groups && s.tiles) return sanitize(s); } catch(e){}
+  const copy = key + '.unreadable.' + new Date().toISOString().replace(/[:.]/g, '-');
+  let kept = true; try { localStorage.setItem(copy, raw); } catch(e){ kept = false; }
+  unreadable = raw; savePaused = !kept;
+  setWarn('load', `This board's saved data couldn't be read, so it opened empty. ${kept ? 'A copy was kept in this browser.' : 'Saving is paused so nothing is overwritten.'} <button data-act="dl-unreadable">Download the unreadable data</button>${kept ? '' : ' <button data-act="resume-save">Start this board fresh</button>'}`);
   return blank();
 }
+// Every board that is loaded or restored passes through here, so a hand-made or tampered file can't smuggle
+// markup or script in: ids are checked against a safe pattern (new ones are made otherwise), text fields must be
+// text, and every link is re-checked, so a javascript: link can never reach Open.
+const SAFE_ID = /^[A-Za-z0-9_-]{1,40}$/;
+const str = v => typeof v === 'string' ? v : (typeof v === 'number' ? String(v) : '');
 function sanitize(s){
-  s.version = 2;
-  if (!s.groups.find(g=>g.id===UNGROUPED)) s.groups.unshift({id:UNGROUPED,name:'Ungrouped',tileIds:[]});
-  const seen = new Set();
-  for (const g of s.groups){ g.tileIds = (g.tileIds||[]).filter(id => s.tiles[id] && !seen.has(id) && seen.add(id)); }
-  for (const id of Object.keys(s.tiles)) if (!seen.has(id)) s.groups.find(g=>g.id===UNGROUPED).tileIds.push(id);
-  for (const t of Object.values(s.tiles)){
-    if (t.kind !== 'note') t.kind = 'link';
+  const tiles = {}, newId = {};
+  for (const [key, raw] of Object.entries(s.tiles && typeof s.tiles === 'object' ? s.tiles : {})){
+    if (!raw || typeof raw !== 'object') continue;
+    const id = SAFE_ID.test(key) && !tiles[key] ? key : uid();
+    newId[key] = id;
+    const t = { ...raw, id, url:str(raw.url).trim(), title:str(raw.title), note:str(raw.note), shot:str(raw.shot) };
+    t.kind = t.kind === 'note' ? 'note' : 'link';
+    if (t.kind === 'link'){
+      const u = normalize(t.url);
+      if (u) t.url = u;
+      else { t.kind = 'note'; if (!t.title) t.title = t.url; t.url = OTHER_LINK.test(t.url) && !JUNK_LINK.test(t.url) ? t.url : ''; }
+    } else if (t.url && (JUNK_LINK.test(t.url) || !OTHER_LINK.test(t.url))) t.url = '';
+    if (t.shot && !/^https:\/\//i.test(t.shot)) t.shot = '';
     if (t.kind === 'note') t.peek = 'na';
-    else if (t.peek === 'pending' || t.peek === 'queued' || t.peek === 'na') t.peek = 'none';
+    else if (t.peek === 'ok' && !t.shot) t.peek = 'none';
+    else if (!['ok','fail','limited'].includes(t.peek)) t.peek = 'none';
     else if ((t.peek === 'limited' || t.peek === 'fail') && t.via !== 'thum') useThumio(t); // boards saved before the fallback existed
+    tiles[id] = t;
   }
-  return s;
+  const groups = [], gids = new Set(), seen = new Set();
+  for (const g of Array.isArray(s.groups) ? s.groups : []){
+    if (!g || typeof g !== 'object') continue;
+    const id = g.id === UNGROUPED || (SAFE_ID.test(g.id) && !gids.has(g.id)) ? g.id : uid();
+    if (gids.has(id)) continue;
+    gids.add(id);
+    const ids = (Array.isArray(g.tileIds) ? g.tileIds : []).map(k => newId[k]).filter(k => k && !seen.has(k) && seen.add(k));
+    groups.push({ ...g, id, name: str(g.name).trim().slice(0, 120) || (id === UNGROUPED ? 'Ungrouped' : 'Group'), tileIds:ids });
+  }
+  if (!gids.has(UNGROUPED)) groups.unshift({ id:UNGROUPED, name:'Ungrouped', tileIds:[] });
+  for (const id of Object.keys(tiles)) if (!seen.has(id)) groups.find(g => g.id === UNGROUPED).tileIds.push(id);
+  const out = { ...s, version:2, groups, tiles };
+  if (out.lastImport && !(typeof out.lastImport === 'object' && SAFE_ID.test(out.lastImport.batch))) delete out.lastImport;
+  return out;
 }
 let saveT; function save(){ clearTimeout(saveT); saveT = setTimeout(flush, 80); }
-function flush(){ clearTimeout(saveT); saveT = null; try{ localStorage.setItem(boardKey(boardId), JSON.stringify(state)); }catch(e){ toast('Save failed: '+e.message); } }
+function flush(){
+  clearTimeout(saveT); saveT = null;
+  if (savePaused) return;
+  try { localStorage.setItem(boardKey(boardId), JSON.stringify(state)); setWarn('save', ''); }
+  catch(e){ setWarn('save', `Saving failed (${esc(e.message || e.name)}), so recent changes are not stored. <button data-act="export">Export this board now</button> then free up space or delete an old board.`); }
+}
 addEventListener('pagehide', () => { if (saveT) flush(); });
-const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
 
 // ---------- url helpers ----------
 const FILE_EXT = /\.(txt|md|pdf|png|jpe?g|gif|webp|svg|docx?|xlsx?|pptx?|csv|json|zip|mov|mp4|wav|flac|aiff?|psd|ai|fig|sketch|key|pages|numbers|html?)$/i;
@@ -308,6 +368,7 @@ function normalize(raw){
   let u; try { u = new URL(s); } catch(e){ return null; }
   if (!/^https?:$/.test(u.protocol)) return null;
   u.hash = '';
+  u.username = u.password = ''; // never keep a password that was part of a link
   u.hostname = u.hostname.toLowerCase();
   let out = u.toString();
   if (u.pathname === '/' && !u.search) out = out.replace(/\/$/,'');
@@ -324,6 +385,9 @@ function defaultTitle(url){
 }
 function linkName(raw){ try { return decodeURIComponent(raw.split(/[\/:]/).filter(Boolean).pop() || raw); } catch(e){ return raw; } }
 const isNote = t => t.kind === 'note';
+// Private tiles (or every tile in a private group) are never sent to the screenshot or favicon services.
+const isPrivate = t => !!(t.noPeek || (groupOf(t.id) || {}).noPeek);
+state = load();
 const label = t => t.title || (isNote(t) ? (t.url ? linkName(t.url) : 'Untitled note') : defaultTitle(t.url));
 const keyOf = t => isNote(t) ? (t.url ? 'u:'+t.url.toLowerCase() : 'n:'+(t.title||'').trim().toLowerCase()) : dedupeKey(t.url);
 
@@ -461,7 +525,7 @@ function addItems(items, groupId, alsoSkipped = 0){
     t.kind === 'link' ? links++ : notes++;
   }
   if (links + notes) state.lastImport = { batch, at:Date.now(), count:links + notes, groups:state.groups.filter(g => !groupsBefore.has(g.id)).map(g => g.id) };
-  save(); render(); queuePeeks();
+  save(); render(); queuePeeks(); checkBackup(); askPersist();
   toast(`Added ${links} link${links===1?'':'s'}` + (notes?` · ${notes} note${notes===1?'':'s'}`:'') + (dup?` · ${dup} duplicate`:'') + (skipped?` · ${skipped} skipped`:''));
 }
 async function importFile(f, groupId){
@@ -499,14 +563,14 @@ function restoreBoard(s){
   if (!s.groups || !s.tiles){ toast('Import failed: missing groups/tiles'); return; }
   if (Object.keys(state.tiles).length && !confirm(`Replace the board "${boardName()}" with this file?\n\nTo keep both: Cancel, pick "+ New empty board" from the board list, then restore again.`)) return;
   closePreview(false);
-  state = sanitize({ version:2, groups:s.groups, tiles:s.tiles }); save(); render(); queuePeeks(); toast('Board restored');
+  state = sanitize({ version:2, groups:s.groups, tiles:s.tiles }); save(); render(); queuePeeks(); checkBackup(); toast('Board restored');
 }
 
 // ---------- peeks (Microlink, then thum.io) ----------
 const queue = []; let active = 0; let limitedUntil = 0;
 function queuePeeks(retry=false){
   for (const t of Object.values(state.tiles)){
-    if (isNote(t)) continue;
+    if (isNote(t) || isPrivate(t)) continue;
     if (t.peek === 'none' || (retry && (t.peek==='fail'||t.peek==='limited'))) { if (!queue.includes(t.id)) { queue.push(t.id); t.peek='queued'; } }
   }
   if (retry) limitedUntil = 0;
@@ -515,10 +579,11 @@ function queuePeeks(retry=false){
 function pump(){
   while (active < CONCURRENCY && queue.length){
     if (Date.now() < limitedUntil){ // Microlink quota spent: the rest of the queue goes straight to thum.io
-      while (queue.length){ const t = state.tiles[queue.shift()]; if (t){ useThumio(t); refreshTile(t.id); } }
+      while (queue.length){ const t = state.tiles[queue.shift()]; if (t && !isPrivate(t)){ useThumio(t); refreshTile(t.id); } }
       save(); updateStats(); return;
     }
     const id = queue.shift(); const t = state.tiles[id]; if (!t || isNote(t)) continue;
+    if (isPrivate(t)){ t.peek = 'none'; continue; }
     active++; fetchPeek(t).finally(()=>{ active--; save(); refreshTile(id); updateStats(); pump(); });
   }
 }
@@ -573,14 +638,17 @@ function groupEl(g){
   if (tree){ const tw = btn(collapsed?'▸':'▾', () => { g.collapsed = !g.collapsed; save(); render(); }); tw.className='twisty'; tw.title = collapsed?'Expand':'Collapse'; head.append(tw); }
   head.append(name, count);
   const sp = document.createElement('span'); sp.className='spacer'; head.append(sp);
-  if (g.tileIds.length){ const h = btn('Hand-off', () => copyText(handoff(visibleIds(g), g), 'Group hand-off')); h.title = 'Copy a brief for Claude covering this group'; head.append(h); }
+  if (g.tileIds.length){ const h = btn('Hand-off', async () => { if (await copyText(handoff(visibleIds(g), g), 'Group hand-off') && !FEEDBACK.test(g.name)) logStat('handoffs'); }); h.title = 'Copy a brief for Claude covering this group'; head.append(h); }
+  const pr = btn(g.noPeek ? '🔒' : '🔓', () => { g.noPeek = !g.noPeek; save(); render(); if (!g.noPeek) queuePeeks(); });
+  pr.title = g.noPeek ? 'Private group: no previews or site icons. Click to allow them again.' : 'Make this group private: its links are never sent to the screenshot or icon services';
+  head.append(pr);
   if (g.id !== UNGROUPED){
     name.title='Double-click to rename';
     name.ondblclick = () => startRename(name, g);
     const ren = btn('Rename', () => startRename(name, g));
     const up = btn('↑', () => moveGroup(g.id,-1)); up.title='Move group up';
     const dn = btn('↓', () => moveGroup(g.id,1)); dn.title='Move group down';
-    const openAll = btn('Open all', () => { const ts = g.tileIds.map(id=>state.tiles[id]).filter(t=>t && t.url); if (!ts.length){ toast('Nothing with a link in this group'); return; } if (ts.length>8 && !confirm(`Open ${ts.length} tabs?`)) return; ts.forEach(t=>window.open(t.url,'_blank','noopener')); });
+    const openAll = btn('Open all', () => { const ts = g.tileIds.map(id=>state.tiles[id]).filter(t=>t && safeLink(t.url)); if (!ts.length){ toast('Nothing with a link in this group'); return; } if (ts.length>8 && !confirm(`Open ${ts.length} tabs?`)) return; ts.forEach(t=>window.open(t.url,'_blank','noopener')); });
     const del = btn('Delete', () => { if (!confirm(`Delete group "${g.name}"? Its items move to Ungrouped.`)) return;
       state.groups.find(x=>x.id===UNGROUPED).tileIds.push(...g.tileIds); state.groups = state.groups.filter(x=>x!==g); save(); render(); });
     del.className='danger';
@@ -618,6 +686,7 @@ function moveGroup(id, dir){
   [state.groups[i], state.groups[j]] = [state.groups[j], state.groups[i]]; save(); render();
 }
 function icon(t, size){
+  if (!isNote(t) && isPrivate(t)) return '<span class="ic">🔒</span>';
   if (!isNote(t)) return `<img alt="" src="${FAVICON(host(t.url))}"${size?` width="${size}" height="${size}"`:''}>`;
   return `<span class="ic">${t.url ? '🔗' : '📝'}</span>`;
 }
@@ -636,7 +705,8 @@ function treeBody(g){
     if (pages.length === 1){ wrap.appendChild(treeRow(state.tiles[id], false)); continue; }
     const key = g.id+'|'+h, open = openSites.has(key) || !!filter || favOnly;
     const site = document.createElement('div'); site.className='site';
-    site.innerHTML = `<span class="twisty">${open?'▾':'▸'}</span><img alt="" src="${FAVICON(h)}"><b>${esc(h)}</b> ${pages.length} pages`;
+    const priv = pages.some(pid => isPrivate(state.tiles[pid]));
+    site.innerHTML = `<span class="twisty">${open?'▾':'▸'}</span>${priv ? '<span class="ic">🔒</span>' : `<img alt="" src="${FAVICON(h)}">`}<b>${esc(h)}</b> ${pages.length} pages`;
     site.onclick = () => { openSites.has(key) ? openSites.delete(key) : openSites.add(key); render(); };
     wrap.appendChild(site);
     if (open) for (const pid of pages) wrap.appendChild(treeRow(state.tiles[pid], true));
@@ -670,7 +740,8 @@ function noteCard(t){
 }
 function peekInner(t){
   if (isNote(t)) return noteCard(t);
-  if (t.peek==='ok' && t.shot) return `<img class="shot" loading="lazy" alt="" src="${esc(t.shot)}" onerror="window.__mpShotErr&&window.__mpShotErr('${t.id}')">`;
+  if (isPrivate(t)) return `<div class="ph" style="--h:${hue(host(t.url))}"><div class="lt">${esc(host(t.url).charAt(0).toUpperCase())}</div><div class="dom">${esc(host(t.url))}</div><div class="st">🔒 private: no preview</div></div>`;
+  if (t.peek==='ok' && t.shot) return `<img class="shot" loading="lazy" alt="" src="${esc(t.shot)}" data-shot="${esc(t.id)}">`;
   const st = {none:'', queued:'queued…', pending:'capturing…', fail:'no preview', limited:'preview rate-limited'}[t.peek] || '';
   return `<div class="ph" style="--h:${hue(host(t.url))}"><img alt="" src="${FAVICON(host(t.url))}"><div class="dom">${esc(host(t.url))}</div><div class="st">${st}</div></div>`;
 }
@@ -689,7 +760,14 @@ function tileEl(t){
   wireDrag(el, t);
   return el;
 }
-window.__mpShotErr = id => { const t = state.tiles[id]; if (!t || t.peek !== 'ok') return; if (t.via === 'thum'){ t.peek='fail'; t.shot=''; } else useThumio(t); save(); refreshTile(id); }; // an expired Microlink image falls back to thum.io once
+// A screenshot that fails to load (an expired Microlink image) falls back to thum.io once. Listening here
+// instead of in an onerror attribute keeps tile data out of anything that runs.
+document.addEventListener('error', e => {
+  const id = e.target instanceof HTMLImageElement && e.target.dataset.shot, t = id && state.tiles[id];
+  if (!t || t.peek !== 'ok') return;
+  if (t.via === 'thum'){ t.peek='fail'; t.shot=''; } else useThumio(t);
+  save(); refreshTile(id);
+}, true);
 function refreshTile(id){
   const t = state.tiles[id]; if (!t) return;
   const el = board.querySelector(`.tile[data-id="${id}"]`);
@@ -707,7 +785,8 @@ function moveTile(id, gid, beforeId){
   save(); render();
 }
 function removeTile(id){ delete state.tiles[id]; for (const g of state.groups) g.tileIds = g.tileIds.filter(x=>x!==id); save(); render(); }
-function openTile(id){ const t = state.tiles[id]; if (t && t.url) window.open(t.url, '_blank', 'noopener'); }
+const safeLink = u => !!u && (/^https?:\/\//i.test(u) || (OTHER_LINK.test(u) && !JUNK_LINK.test(u)));
+function openTile(id){ const t = state.tiles[id]; if (t && safeLink(t.url)) window.open(t.url, '_blank', 'noopener'); }
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function updateStats(){
   const ts = Object.values(state.tiles);
@@ -905,9 +984,10 @@ async function copyText(s, what){
   catch(e){
     const ta = document.createElement('textarea'); ta.value = s; ta.style.cssText = 'position:fixed;opacity:0;top:0';
     document.body.append(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch(_){} ta.remove();
-    if (!ok){ toast('Copy failed: your browser blocked clipboard access'); return; }
+    if (!ok){ toast('Copy failed: your browser blocked clipboard access'); return false; }
   }
   toast(`${what} copied. Paste it into Claude.`);
+  return true;
 }
 
 // ---------- full-screen preview ----------
@@ -924,7 +1004,9 @@ function renderPreview(fields){
   $('pvPos').textContent = sib.length > 1 ? `${i+1} / ${sib.length}` : '';
   $('pvFav').textContent = t.fav ? '★ Favourite' : '☆ Favourite'; $('pvFav').classList.toggle('on', !!t.fav);
   $('pvDone').textContent = t.done ? '✓ Done' : '○ Not done'; $('pvDone').classList.toggle('on', !!t.done);
-  $('pvOpen').hidden = !t.url;
+  $('pvOpen').hidden = !safeLink(t.url);
+  $('pvPriv').hidden = isNote(t);
+  $('pvPriv').textContent = isPrivate(t) ? '🔒 Private' : '🔓 Not private'; $('pvPriv').classList.toggle('on', isPrivate(t));
   if (fields){
     $('pvTitle').value = t.title || ''; $('pvTitle').placeholder = label(t);
     $('pvUrl').value = t.url || '';
@@ -954,10 +1036,20 @@ $('pvClose').onclick = () => closePreview();
 $('pvPrev').onclick = () => stepPreview(-1);
 $('pvNext').onclick = () => stepPreview(1);
 $('pvFav').onclick = () => { const t = state.tiles[pvId]; t.fav = !t.fav; save(); refreshTile(t.id); renderPreview(false); };
-$('pvDone').onclick = () => { const t = state.tiles[pvId]; t.done = !t.done; save(); refreshTile(t.id); renderPreview(false); };
+$('pvDone').onclick = () => {
+  const t = state.tiles[pvId]; t.done = !t.done;
+  if (t.done){ t.doneAt = Date.now(); if (!FEEDBACK.test((groupOf(t.id) || {}).name || '')) logStat('done'); } else delete t.doneAt;
+  save(); refreshTile(t.id); renderPreview(false);
+};
+$('pvPriv').onclick = () => {
+  const t = state.tiles[pvId], g = groupOf(t.id);
+  if (g && g.noPeek){ toast(`The whole group "${g.name}" is private. Use 🔒 on the group to change it.`); return; }
+  t.noPeek = !t.noPeek; if (!t.noPeek && t.peek !== 'ok') t.peek = 'none';
+  save(); refreshTile(t.id); renderPreview(false); if (!t.noPeek) queuePeeks();
+};
 $('pvOpen').onclick = () => openTile(pvId);
 $('pvDel').onclick = () => { const sib = pvSiblings(), i = sib.indexOf(pvId), next = sib[i+1] || sib[i-1]; removeTile(pvId); next ? openPreview(next) : closePreview(); };
-$('pvHand').onclick = () => copyText(handoff([pvId], groupOf(pvId)), 'Hand-off');
+$('pvHand').onclick = async () => { const g = groupOf(pvId); if (await copyText(handoff([pvId], g), 'Hand-off') && !FEEDBACK.test((g || {}).name || '')) logStat('handoffs'); };
 $('pvTitle').oninput = e => { const t = state.tiles[pvId]; t.title = e.target.value.trim(); save(); refreshTile(t.id); renderPreview(false); };
 $('pvNote').oninput = e => { const t = state.tiles[pvId]; t.note = e.target.value; save(); if (isNote(t)) refreshTile(t.id); };
 $('pvUrl').onchange = e => setUrl(state.tiles[pvId], e.target.value);
@@ -1009,11 +1101,13 @@ $('btnUndoImport').onclick = undoLastImport;
 $('viewSeg').onclick = e => { const v = e.target.dataset.view; if (!v || v===view) return; view = v; localStorage.setItem(KEY+'.view', v); render(); };
 $('btnExpand').onclick = () => { state.groups.forEach(g=>g.collapsed=false); for (const t of Object.values(state.tiles)){ const g = groupOf(t.id); if (g && !isNote(t)) openSites.add(g.id+'|'+host(t.url)); } save(); render(); };
 $('btnCollapse').onclick = () => { state.groups.forEach(g=>g.collapsed=true); openSites.clear(); save(); render(); };
-$('btnExport').onclick = () => {
+$('btnExport').onclick = () => exportBoard();
+function exportBoard(){
   const blob = new Blob([JSON.stringify({...state, boardName:boardName(), exportedAt:new Date().toISOString()}, null, 2)], {type:'application/json'});
   const slug = boardName().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'board';
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mosaic-peek-${slug}-${new Date().toISOString().slice(0,10)}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-};
+  const ex = readJSON(EXPORTS, {}); ex[boardId] = Date.now(); writeJSON(EXPORTS, ex); checkBackup();
+}
 $('btnImportJson').onclick = () => $('fileJson').click();
 $('fileJson').onchange = async e => {
   const f = e.target.files[0]; e.target.value=''; if (!f) return;
@@ -1044,6 +1138,63 @@ window.addEventListener('storage', e => {
   else if (e.key === boardKey(boardId)){ state = load(); render(); }
 });
 
+// ---------- your stats ----------
+// A small log kept on this device only: days the app was opened, hand-offs copied, items marked done.
+// The "Mosaic feedback" group is left out of the counts.
+const STATS = 'mosaicPeek.stats', EXPORTS = 'mosaicPeek.exports', SNOOZE = 'mosaicPeek.backupSnooze';
+const FEEDBACK = /^\s*mosaic feedback\s*$/i;
+function readJSON(k, d){ try { const v = JSON.parse(localStorage.getItem(k)); return v && typeof v === 'object' ? v : d; } catch(e){ return d; } }
+function writeJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+const localDay = (d = new Date()) => d.toLocaleDateString('en-CA');
+function loadStats(){
+  const s = readJSON(STATS, {}), list = (a, ok) => Array.isArray(a) ? a.filter(ok).slice(-2000) : [];
+  return { days:list(s.days, d => /^\d{4}-\d\d-\d\d$/.test(d)), handoffs:list(s.handoffs, Number.isFinite), done:list(s.done, Number.isFinite) };
+}
+function logStat(kind){
+  const s = loadStats();
+  if (kind === 'open'){ const d = localDay(); if (s.days.includes(d)) return; s.days.push(d); }
+  else s[kind].push(Date.now());
+  writeJSON(STATS, s);
+}
+function statsText(){
+  const s = loadStats(), now = Date.now(), DAY = 864e5;
+  const since = n => localDay(new Date(now - (n-1)*DAY));
+  const row = (name, inLast, total) => `${name}: ${inLast(7)} in the last 7 days, ${inLast(30)} in the last 30 days, ${total} in all`;
+  return [
+    row('Days you opened it', n => s.days.filter(d => d >= since(n)).length, s.days.length),
+    row('Hand-offs copied', n => s.handoffs.filter(t => t > now - n*DAY).length, s.handoffs.length),
+    row('Items marked done', n => s.done.filter(t => t > now - n*DAY).length, s.done.length),
+    '', `Counting since ${s.days[0] || 'today'}. Kept on this device only; nothing is sent anywhere. The "Mosaic feedback" group is left out.`
+  ].join('\n');
+}
+$('btnStats').onclick = () => alert(statsText());
+logStat('open');
+
+// ---------- backups ----------
+// A weekly "back up now" reminder per board once it holds a few items, with the date of its last export.
+function checkBackup(){
+  const n = Object.keys(state.tiles).length, last = readJSON(EXPORTS, {})[boardId], snooze = +localStorage.getItem(SNOOZE) || 0, WEEK = 7*864e5;
+  if (n < 5 || (last && Date.now() - last < WEEK) || Date.now() < snooze){ setWarn('backup', ''); return; }
+  const when = last ? 'last exported ' + new Date(last).toLocaleDateString([], { month:'short', day:'numeric' }) : 'not exported yet';
+  setWarn('backup', `Back up "${esc(boardName())}": ${when}. <button data-act="export">Export now</button> <button data-act="snooze">Remind me next week</button>`);
+}
+// Ask the browser not to clear this app's data under storage pressure, once the board holds something.
+let persistAsked = false;
+function askPersist(){
+  if (persistAsked || !/^https?:$/.test(location.protocol) || !Object.keys(state.tiles).length || !(navigator.storage && navigator.storage.persist)) return;
+  persistAsked = true; navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(() => {});
+}
+$('warn').addEventListener('click', e => {
+  const act = e.target.dataset && e.target.dataset.act; if (!act) return;
+  if (act === 'export') exportBoard();
+  else if (act === 'snooze'){ localStorage.setItem(SNOOZE, String(Date.now() + 7*864e5)); checkBackup(); }
+  else if (act === 'dl-unreadable' && unreadable != null){
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([unreadable], { type:'text/plain' }));
+    a.download = `mosaic-peek-unreadable-${new Date().toISOString().slice(0,10)}.txt`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  else if (act === 'resume-save'){ if (!confirm('Start this board fresh? Download the unreadable data first if you might need it.')) return; savePaused = false; unreadable = null; setWarn('load', ''); save(); }
+});
+
 // ---------- boards ----------
 // The board list doubles as the menu for starting a fresh empty board, renaming or deleting the current one.
 const selBoard = $('selBoard');
@@ -1055,8 +1206,9 @@ function fillBoardSelect(){
 function switchBoard(id){
   if (saveT) flush();
   closePreview(false); queue.length = 0;
+  savePaused = false; unreadable = null; setWarn('load', ''); setWarn('save', '');
   boardId = id; saveBoards(); state = load();
-  fillBoardSelect(); render(); queuePeeks();
+  fillBoardSelect(); render(); queuePeeks(); checkBackup();
 }
 function newBoard(){
   const n = prompt('Name for the new, empty board', 'New board'); if (!n || !n.trim()) return;
@@ -1098,20 +1250,20 @@ if (/^https?:$/.test(location.protocol)){
         .then(() => toast('Offline copy removed')).catch(() => {});
     } else addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
-  // Ask the browser not to clear this app's data under storage pressure (iPhone home-screen apps in particular).
-  if (standalone && navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(() => {});
 }
 let installEvt = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('btnInstall').hidden = false; });
 addEventListener('appinstalled', () => { installEvt = null; $('btnInstall').hidden = true; toast('Installed. Open Mosaic Peek from your apps.'); });
-if (iOS && !standalone && /^https?:$/.test(location.protocol)) $('btnInstall').hidden = false;
+if (!standalone && /^https?:$/.test(location.protocol)) $('btnInstall').hidden = false;
 $('btnInstall').onclick = async () => {
   if (installEvt){ installEvt.prompt(); const r = await installEvt.userChoice.catch(() => null); if (r && r.outcome === 'accepted') $('btnInstall').hidden = true; installEvt = null; return; }
+  // No install prompt from the browser (it waits until you've used the page a little, or the app is already installed).
+  if (!iOS){ alert('To install Mosaic Peek on this computer:\n\nEdge: click the browser\'s ⋯ menu (top right), then Apps, then "Install this site as an app".\nChrome: click the install icon at the right end of the address bar, or ⋮ menu, then "Cast, save and share", then "Install page as app".\n\nIf those options are missing, it may already be installed: look for Mosaic Peek in your Start menu.'); return; }
   alert('To install on iPhone or iPad:\n1. Export each board you want to keep (⋯ → Export board).\n2. In Safari, tap Share, then "Add to Home Screen".\n3. Open the new app and restore each board (⋯ → Restore board).\n\nThe home-screen app keeps its own copy, separate from Safari, so step 1 carries your boards across.');
 };
 
 setDrift(wall.drift);
-render(); queuePeeks();
+render(); queuePeeks(); checkBackup(); askPersist();
 })();
 </script>
 </body>

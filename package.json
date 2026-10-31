@@ -1,0 +1,12 @@
+{
+  "name": "mosaic-peek",
+  "private": true,
+  "description": "Tests for Mosaic Peek. The app itself is index.html and needs no build.",
+  "scripts": {
+    "test": "node tools/csp-hash.js --check && node --test --test-concurrency=2 tests/*.test.js",
+    "csp": "node tools/csp-hash.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
